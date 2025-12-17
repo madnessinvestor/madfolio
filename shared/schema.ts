@@ -12,6 +12,9 @@ export const assets = pgTable("assets", {
   name: text("name").notNull(),
   category: text("category").notNull(),
   market: text("market").notNull(),
+  quantity: real("quantity").notNull().default(0),
+  acquisitionPrice: real("acquisition_price").notNull().default(0),
+  acquisitionDate: date("acquisition_date"),
   currentPrice: real("current_price"),
   lastPriceUpdate: timestamp("last_price_update"),
 });

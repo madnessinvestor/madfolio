@@ -6,6 +6,16 @@ import { z } from "zod";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services/pricing";
 
+const investmentSchema = z.object({
+  name: z.string().min(1),
+  symbol: z.string().min(1),
+  category: z.string(),
+  market: z.enum(["crypto", "traditional", "real_estate"]),
+  quantity: z.number().positive(),
+  acquisitionPrice: z.number().positive(),
+  acquisitionDate: z.string(),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -97,6 +107,58 @@ export async function registerRoutes(
       res.json(asset);
     } catch (error) {
       res.status(500).json({ error: "Failed to refresh price" });
+    }
+  });
+
+  app.post("/api/investments", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    try {
+      const validated = investmentSchema.parse(req.body);
+      
+      const asset = await storage.createAsset({
+        userId,
+        symbol: validated.symbol.toUpperCase(),
+        name: validated.name,
+        category: validated.category,
+        market: validated.market,
+        quantity: validated.quantity,
+        acquisitionPrice: validated.acquisitionPrice,
+        acquisitionDate: validated.acquisitionDate,
+      });
+      
+      if (validated.market !== "real_estate") {
+        const price = await fetchAssetPrice(asset.symbol, asset.market);
+        if (price !== null) {
+          await storage.updateAsset(asset.id, { 
+            currentPrice: price, 
+            lastPriceUpdate: new Date() 
+          });
+        }
+      } else {
+        await storage.updateAsset(asset.id, { 
+          currentPrice: validated.acquisitionPrice,
+          lastPriceUpdate: new Date() 
+        });
+      }
+      
+      const totalValue = validated.quantity * (validated.market === "real_estate" ? validated.acquisitionPrice : (await storage.getAsset(asset.id))?.currentPrice || validated.acquisitionPrice);
+      await storage.createSnapshot({
+        assetId: asset.id,
+        value: totalValue,
+        amount: validated.quantity,
+        unitPrice: validated.acquisitionPrice,
+        date: validated.acquisitionDate,
+        notes: "Aquisição inicial"
+      });
+      
+      const updatedAsset = await storage.getAsset(asset.id);
+      res.status(201).json(updatedAsset);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating investment:", error);
+      res.status(500).json({ error: "Failed to create investment" });
     }
   });
 
@@ -208,22 +270,27 @@ export async function registerRoutes(
   app.get("/api/portfolio/summary", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;
     try {
-      const assets = await storage.getAssets();
-      const latestSnapshots = await storage.getLatestSnapshots();
+      const allAssets = await storage.getAssets(userId);
       
       let totalValue = 0;
       let cryptoValue = 0;
       let traditionalValue = 0;
+      let realEstateValue = 0;
       
-      const holdings = await Promise.all(latestSnapshots.map(async (snapshot) => {
-        const asset = assets.find(a => a.id === snapshot.assetId);
-        if (!asset) return null;
+      const holdings = allAssets.map((asset) => {
+        const currentPrice = asset.currentPrice || asset.acquisitionPrice || 0;
+        const quantity = asset.quantity || 0;
+        const value = quantity * currentPrice;
+        const acquisitionValue = quantity * (asset.acquisitionPrice || 0);
+        const profitLoss = value - acquisitionValue;
+        const profitLossPercent = acquisitionValue > 0 ? (profitLoss / acquisitionValue) * 100 : 0;
         
-        const value = snapshot.value;
         totalValue += value;
         
         if (asset.market === "crypto") {
           cryptoValue += value;
+        } else if (asset.market === "real_estate") {
+          realEstateValue += value;
         } else {
           traditionalValue += value;
         }
@@ -235,18 +302,22 @@ export async function registerRoutes(
           category: asset.category,
           market: asset.market,
           value,
-          amount: snapshot.amount,
-          unitPrice: snapshot.unitPrice,
-          lastUpdate: snapshot.date
+          quantity,
+          acquisitionPrice: asset.acquisitionPrice || 0,
+          currentPrice,
+          profitLoss,
+          profitLossPercent,
+          lastUpdate: asset.lastPriceUpdate
         };
-      }));
+      });
       
       res.json({
         totalValue,
         cryptoValue,
         traditionalValue,
+        realEstateValue,
         cryptoExposure: totalValue > 0 ? (cryptoValue / totalValue) * 100 : 0,
-        holdings: holdings.filter(Boolean)
+        holdings
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch portfolio summary" });

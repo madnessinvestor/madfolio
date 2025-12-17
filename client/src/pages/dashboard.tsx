@@ -2,9 +2,8 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
-import { AddAssetDialog, type Asset } from "@/components/dashboard/AddAssetDialog";
-import { SnapshotDialog, type Snapshot } from "@/components/dashboard/SnapshotDialog";
-import { Wallet, TrendingUp, PiggyBank, Percent } from "lucide-react";
+import { AddInvestmentDialog, type Investment } from "@/components/dashboard/AddInvestmentDialog";
+import { Wallet, TrendingUp, PiggyBank, Percent, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -14,6 +13,7 @@ interface PortfolioSummary {
   totalValue: number;
   cryptoValue: number;
   traditionalValue: number;
+  realEstateValue: number;
   cryptoExposure: number;
   holdings: Array<{
     id: string;
@@ -22,6 +22,11 @@ interface PortfolioSummary {
     category: string;
     market: string;
     value: number;
+    quantity: number;
+    acquisitionPrice: number;
+    currentPrice: number;
+    profitLoss: number;
+    profitLossPercent: number;
   }>;
 }
 
@@ -35,10 +40,6 @@ interface HistoryPoint {
 export default function Dashboard() {
   const { toast } = useToast();
 
-  const { data: assets = [], isLoading: assetsLoading } = useQuery<Asset[]>({
-    queryKey: ["/api/assets"],
-  });
-
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
   });
@@ -47,61 +48,36 @@ export default function Dashboard() {
     queryKey: ["/api/portfolio/history"],
   });
 
-  const createAssetMutation = useMutation({
-    mutationFn: async (asset: Omit<Asset, "id">) => {
-      return apiRequest("POST", "/api/assets", asset);
+  const createInvestmentMutation = useMutation({
+    mutationFn: async (investment: Omit<Investment, "id" | "currentPrice">) => {
+      return apiRequest("POST", "/api/investments", investment);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
-      toast({
-        title: "Ativo adicionado",
-        description: "O ativo foi cadastrado com sucesso.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível adicionar o ativo.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createSnapshotMutation = useMutation({
-    mutationFn: async (snapshot: Omit<Snapshot, "id">) => {
-      return apiRequest("POST", "/api/snapshots", snapshot);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/statements"] });
       toast({
-        title: "Lançamento registrado",
-        description: "O valor foi atualizado com sucesso.",
+        title: "Investimento adicionado",
+        description: "O investimento foi cadastrado e o preço atual será atualizado automaticamente.",
       });
     },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Não foi possível registrar o lançamento.",
+        description: "Não foi possível adicionar o investimento.",
         variant: "destructive",
       });
     },
   });
 
-  const handleAddAsset = (asset: Omit<Asset, "id">) => {
-    createAssetMutation.mutate(asset);
-  };
-
-  const handleAddSnapshot = (snapshot: Omit<Snapshot, "id">) => {
-    createSnapshotMutation.mutate(snapshot);
+  const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
+    createInvestmentMutation.mutate(investment);
   };
 
   const totalPortfolio = summary?.totalValue || 0;
   const cryptoValue = summary?.cryptoValue || 0;
   const traditionalValue = summary?.traditionalValue || 0;
+  const realEstateValue = summary?.realEstateValue || 0;
   const cryptoExposure = summary?.cryptoExposure || 0;
 
   const categoryTotals: Record<string, number> = {};
@@ -110,6 +86,7 @@ export default function Dashboard() {
                 h.category === "stocks" ? "Ações" : 
                 h.category === "fixed_income" ? "Renda Fixa" :
                 h.category === "fii" ? "FIIs" :
+                h.category === "real_estate" ? "Imóveis" :
                 h.category === "cash" ? "Caixa" : "Outros";
     categoryTotals[cat] = (categoryTotals[cat] || 0) + h.value;
   });
@@ -125,7 +102,7 @@ export default function Dashboard() {
     value: h.value,
   }));
 
-  const isLoading = assetsLoading || summaryLoading || historyLoading;
+  const isLoading = summaryLoading || historyLoading;
 
   return (
     <div className="p-6 space-y-6">
@@ -135,8 +112,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Visão geral do seu portfólio</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SnapshotDialog assets={assets} onAdd={handleAddSnapshot} />
-          <AddAssetDialog onAdd={handleAddAsset} />
+          <AddInvestmentDialog onAdd={handleAddInvestment} isLoading={createInvestmentMutation.isPending} />
         </div>
       </div>
 
@@ -147,7 +123,7 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <MetricCard
             title="Total do Portfólio"
             value={`R$ ${totalPortfolio.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
@@ -162,6 +138,11 @@ export default function Dashboard() {
             title="Tradicional"
             value={`R$ ${traditionalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
             icon={PiggyBank}
+          />
+          <MetricCard
+            title="Imóveis"
+            value={`R$ ${realEstateValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
+            icon={Building2}
           />
           <MetricCard
             title="Exposição Cripto"
@@ -195,7 +176,8 @@ export default function Dashboard() {
               data={[
                 { name: "Mercado Cripto", value: cryptoValue, color: "hsl(var(--chart-1))" },
                 { name: "Mercado Tradicional", value: traditionalValue, color: "hsl(var(--chart-2))" },
-              ]}
+                { name: "Imóveis", value: realEstateValue, color: "hsl(var(--chart-3))" },
+              ].filter(d => d.value > 0)}
             />
           </>
         ) : (
