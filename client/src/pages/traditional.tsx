@@ -2,8 +2,7 @@ import { useState } from "react";
 import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
-import { AddAssetDialog, type Asset } from "@/components/dashboard/AddAssetDialog";
-import { SnapshotDialog, type Snapshot } from "@/components/dashboard/SnapshotDialog";
+import { AddAssetDialog, type Asset, type Snapshot } from "@/components/dashboard/AddAssetDialog";
 import { Landmark, TrendingUp, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -122,7 +121,7 @@ export default function TraditionalPage() {
   const handleEdit = (holding: Holding) => {
     toast({
       title: "Editar ativo",
-      description: `Use "Novo Lançamento" para atualizar o valor de ${holding.symbol}.`,
+      description: `Use a aba "Novo Lançamento" em "Adicionar Ativo" para atualizar o valor de ${holding.symbol}.`,
     });
   };
 
@@ -167,8 +166,7 @@ export default function TraditionalPage() {
           <p className="text-muted-foreground">Ações, FIIs, Renda Fixa e Caixa</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <SnapshotDialog assets={assets} onAdd={handleAddSnapshot} />
-          <AddAssetDialog onAdd={handleAddAsset} defaultMarket="traditional" />
+          <AddAssetDialog assets={assets} onAddAsset={handleAddAsset} onAddSnapshot={handleAddSnapshot} defaultMarket="traditional" />
         </div>
       </div>
 
