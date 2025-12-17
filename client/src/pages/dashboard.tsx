@@ -3,7 +3,7 @@ import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
-import { Wallet, TrendingUp, PiggyBank, Percent, Building2 } from "lucide-react";
+import { Wallet, TrendingUp, PiggyBank, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -108,7 +108,6 @@ export default function Dashboard() {
   const cryptoValue = summary?.cryptoValue || 0;
   const traditionalValue = summary?.traditionalValue || 0;
   const realEstateValue = summary?.realEstateValue || 0;
-  const cryptoExposure = summary?.cryptoExposure || 0;
 
   const categoryTotals: Record<string, number> = {};
   summary?.holdings.forEach((h) => {
@@ -155,7 +154,7 @@ export default function Dashboard() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Total do Portfólio"
             value={format(totalPortfolio)}
@@ -175,11 +174,6 @@ export default function Dashboard() {
             title="Imóveis"
             value={format(realEstateValue)}
             icon={Building2}
-          />
-          <MetricCard
-            title="Exposição Cripto"
-            value={`${cryptoExposure.toFixed(1)}%`}
-            icon={Percent}
           />
         </div>
       )}
