@@ -21,7 +21,7 @@ import { History, Search, Filter, Calendar } from "lucide-react";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Asset } from "@/components/dashboard/AddAssetDialog";
+import type { Investment as Asset } from "@/components/dashboard/AddInvestmentDialog";
 
 interface Snapshot {
   id: string;

@@ -2,7 +2,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
-import { AddInvestmentDialog, type Investment } from "@/components/dashboard/AddInvestmentDialog";
+import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
 import { Wallet, TrendingUp, PiggyBank, Percent, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -74,8 +74,34 @@ export default function Dashboard() {
     },
   });
 
+  const createSnapshotMutation = useMutation({
+    mutationFn: async (snapshot: Snapshot) => {
+      return apiRequest("POST", "/api/snapshots", snapshot);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      toast({
+        title: "Valor atualizado",
+        description: "O valor do ativo foi atualizado com sucesso.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o valor.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
     createInvestmentMutation.mutate(investment);
+  };
+
+  const handleAddSnapshot = (snapshot: Snapshot) => {
+    createSnapshotMutation.mutate(snapshot);
   };
 
   const totalPortfolio = summary?.totalValue || 0;
@@ -118,7 +144,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Visão geral do seu portfólio</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AddInvestmentDialog onAdd={handleAddInvestment} isLoading={createInvestmentMutation.isPending} />
+          <AddInvestmentDialog onAdd={handleAddInvestment} onAddSnapshot={handleAddSnapshot} isLoading={createInvestmentMutation.isPending || createSnapshotMutation.isPending} />
         </div>
       </div>
 
