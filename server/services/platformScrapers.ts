@@ -187,135 +187,90 @@ async function scrapeJupiterPortfolioNetWorth(
     page.close().catch(() => {});
   }, timeoutMs);
   
+  let capturedValue: string | null = null;
+  
   try {
-    console.log('[JupiterPortfolio] Starting calculation-based scraper (SOL × Price)');
+    console.log('[JupiterPortfolio] Starting network interception scraper for jup.ag/portfolio');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    // Navigate and wait for initial load
+    // Register network interception listener
+    page.on('response', async (response) => {
+      try {
+        // Only check JSON responses
+        const contentType = response.headers()['content-type'] || '';
+        if (!contentType.includes('application/json')) return;
+        
+        // Get response body
+        const body = await response.text();
+        if (!body || body.length === 0) return;
+        
+        // Parse JSON
+        const data = JSON.parse(body) as any;
+        
+        // Log ALL API responses for debugging
+        const url = response.url();
+        console.log('[JupiterPortfolio] API Response from: ' + url.substring(0, 80));
+        
+        // Recursive search for numeric value fields related to portfolio/net worth
+        const searchForPortfolioValue = (obj: any, depth = 0): number | null => {
+          if (depth > 6) return null;
+          
+          if (typeof obj !== 'object' || obj === null) return null;
+          
+          // Direct field match - many variations
+          if (obj.netWorthUsd || obj.totalValueUsd || obj.portfolioValueUsd || 
+              obj.netWorth || obj.totalValue || obj.portfolioValue ||
+              obj.total_value_usd || obj.net_worth_usd ||
+              obj.balanceUsd || obj.totalBalanceUsd || obj.total_balance_usd ||
+              obj.value || obj.totalUsd || obj.total_usd) {
+            const val = obj.netWorthUsd || obj.totalValueUsd || obj.portfolioValueUsd ||
+                       obj.netWorth || obj.totalValue || obj.portfolioValue ||
+                       obj.total_value_usd || obj.net_worth_usd ||
+                       obj.balanceUsd || obj.totalBalanceUsd || obj.total_balance_usd ||
+                       (obj.value && typeof obj.value === 'number' ? obj.value : undefined) ||
+                       obj.totalUsd || obj.total_usd;
+            return typeof val === 'number' && val > 0 ? val : null;
+          }
+          
+          // Search nested objects
+          for (const key in obj) {
+            const result = searchForPortfolioValue(obj[key], depth + 1);
+            if (result !== null) return result;
+          }
+          
+          return null;
+        };
+        
+        const portfolioValue = searchForPortfolioValue(data);
+        
+        if (portfolioValue && portfolioValue > 0) {
+          console.log('[JupiterPortfolio] Found portfolio value in network response: $' + portfolioValue.toFixed(2));
+          capturedValue = '$' + portfolioValue.toFixed(2);
+        }
+      } catch (e) {
+        // Silently ignore parsing errors for non-JSON responses
+      }
+    });
+    
+    console.log('[JupiterPortfolio] Network listener registered, navigating to ' + walletLink);
+    
+    // Navigate and wait for network idle
     await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 25000 }).catch(e => 
       console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
     );
     
-    // Wait significantly longer for JS to render and load portfolio data
-    console.log('[JupiterPortfolio] Waiting for page to fully render...');
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // Wait for responses to be processed
+    console.log('[JupiterPortfolio] Waiting for API responses...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
-    console.log('[JupiterPortfolio] Extracting total SOL amount from portfolio');
-    
-    // Extract total SOL from page
-    const debugInfo = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      
-      // Return full text for external logging
-      return {
-        fullText: fullText,
-        preview: fullText.substring(0, 3000)
-      };
-    });
-    
-    console.log('[JupiterPortfolio] DOM preview length: ' + debugInfo.fullText.length);
-    console.log('[JupiterPortfolio] DOM preview (first 1500 chars): ' + debugInfo.preview.replace(/\n/g, ' | '));
-    
-    // Now extract SOL amounts
-    const solAmount = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      
-      // Use regex to find all numbers followed by SOL
-      const regex = /([\d.,]+)\s*SOL(?!\w)/gi;
-      const matches = [];
-      let match;
-      
-      while ((match = regex.exec(fullText)) !== null) {
-        const rawAmount = match[1];
-        
-        // Get context to check for PnL, Holdings, Claimable
-        const contextStart = Math.max(0, match.index - 150);
-        const contextEnd = Math.min(fullText.length, match.index + 150);
-        const context = fullText.substring(contextStart, contextEnd).toLowerCase();
-        
-        const isPnl = context.includes('pnl');
-        const isHoldings = context.includes('holdings');
-        const isClaimable = context.includes('claimable');
-        const isNegative = context.includes('-' + match[1]) || context.includes('−' + match[1]);
-        
-        matches.push({
-          raw: rawAmount,
-          isPnl,
-          isHoldings,
-          isClaimable,
-          isNegative,
-          accepted: !isPnl && !isHoldings && !isClaimable && !isNegative
-        });
-      }
-      
-      return matches;
-    });
-    
-    console.log('[JupiterPortfolio] Found ' + solAmount.length + ' SOL matches');
-    for (const match of solAmount) {
-      console.log('[JupiterPortfolio]   ' + match.raw + ' - pnl:' + match.isPnl + ' holdings:' + match.isHoldings + ' claimable:' + match.isClaimable + ' negative:' + match.isNegative + ' accepted:' + match.accepted);
+    if (capturedValue) {
+      console.log('[JupiterPortfolio] SUCCESS - Captured from network: ' + capturedValue);
+      return { value: capturedValue, success: true, platform: 'jupiter' };
     }
     
-    // Filter accepted matches
-    const acceptedMatches = solAmount.filter(m => m.accepted).map(m => m.raw);
-    
-    if (acceptedMatches.length === 0) {
-      console.log('[JupiterPortfolio] No valid SOL values found after filtering');
-      return { value: null, success: false, platform: 'jupiter', error: 'SOL amount not found' };
-    }
-    
-    // Normalize and find largest
-    const normalized = acceptedMatches.map(m => ({
-      raw: m,
-      numeric: parseFloat(m.replace(/\./g, '').replace(/,/g, '.'))
-    }));
-    
-    for (const n of normalized) {
-      console.log('[JupiterPortfolio]   Normalized: ' + n.raw + ' → ' + n.numeric);
-    }
-    
-    // Filter to values > 0.01
-    const validValues = normalized.filter(n => n.numeric > 0.01);
-    if (validValues.length === 0) {
-      console.log('[JupiterPortfolio] No values > 0.01 found');
-      return { value: null, success: false, platform: 'jupiter', error: 'SOL amount not found' };
-    }
-    
-    const largestMatch = validValues.reduce((a, b) => a.numeric > b.numeric ? a : b);
-    const solValue = largestMatch.numeric;
-    console.log('[JupiterPortfolio] Selected SOL: ' + largestMatch.raw + ' = ' + solValue);
-    
-    // Fetch SOL price from CoinGecko API
-    console.log('[JupiterPortfolio] Fetching SOL/USD price from CoinGecko');
-    
-    let solPrice = 0;
-    try {
-      const priceResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-      if (priceResponse.ok) {
-        const priceData = await priceResponse.json() as any;
-        solPrice = priceData.solana?.usd || 0;
-        console.log('[JupiterPortfolio] SOL/USD price from CoinGecko: ' + solPrice);
-      } else {
-        console.log('[JupiterPortfolio] CoinGecko API error: ' + priceResponse.status);
-      }
-    } catch (apiError) {
-      console.error('[JupiterPortfolio] Error fetching SOL price:', apiError);
-    }
-    
-    if (solPrice <= 0) {
-      console.log('[JupiterPortfolio] Could not fetch valid SOL price');
-      return { value: null, success: false, platform: 'jupiter', error: 'SOL price not available' };
-    }
-    
-    // Calculate portfolio value in USD
-    const portfolioUsd = solValue * solPrice;
-    const formattedValue = portfolioUsd.toFixed(2);
-    
-    console.log('[JupiterPortfolio] Calculation: ' + solValue + ' SOL × $' + solPrice + ' = $' + formattedValue);
-    console.log('[JupiterPortfolio] VALIDATION PASSED - Portfolio value: $' + formattedValue);
-    
-    return { value: '$' + formattedValue, success: true, platform: 'jupiter' };
+    console.log('[JupiterPortfolio] No portfolio value found in network responses');
+    return { value: null, success: false, platform: 'jupiter', error: 'Portfolio value not found in network responses' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[JupiterPortfolio] Error:', msg);
