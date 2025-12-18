@@ -322,6 +322,45 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/debank-balance", async (req, res) => {
+    try {
+      const address = req.query.address as string;
+      if (!address) {
+        return res.status(400).json({ error: "address parameter is required" });
+      }
+
+      if (!address.startsWith("0x") || address.length !== 42) {
+        return res.status(400).json({ error: "Invalid Ethereum address" });
+      }
+
+      // Fetch from DeBankAPI API
+      const response = await fetch(`https://api.debank.com/v1/user/total_balance?id=${address}`, {
+        headers: {
+          "Accept": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return res.status(404).json({ error: "Failed to fetch from DeBankAPI" });
+      }
+
+      const data = await response.json();
+      const balanceUSD = data.total_usd_value || 0;
+      const rates = await fetchExchangeRates();
+      const exchangeRate = rates.USD || 5.51;
+      const balanceBRL = balanceUSD * exchangeRate;
+
+      res.json({
+        address,
+        balanceUSD,
+        balanceBRL,
+      });
+    } catch (error) {
+      console.error("Error fetching DeBankAPI balance:", error);
+      res.status(500).json({ error: "Failed to fetch DeBankAPI balance" });
+    }
+  });
+
   app.get("/api/portfolio/summary", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;
     try {

@@ -120,6 +120,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [walletLink, setWalletLink] = useState("");
   const [network, setNetwork] = useState("");
   const [walletLoading, setWalletLoading] = useState(false);
+  const [refreshIntervalId, setRefreshIntervalId] = useState<NodeJS.Timeout | null>(null);
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -320,48 +321,55 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setWalletLoading(false);
   };
 
-  const parseWalletAddressFromLink = (link: string): string | null => {
+  const parseWalletAddressFromLink = (link: string): { address: string | null; isDeBank: boolean } => {
     try {
       const url = new URL(link);
       const hostname = url.hostname.toLowerCase();
       
+      // DeBankAPI
+      if (hostname.includes("debank")) {
+        const addressMatch = url.pathname.match(/(0x[a-fA-F0-9]{40})/);
+        if (addressMatch) return { address: addressMatch[1], isDeBank: true };
+      }
+      
       // Etherscan variants
       if (hostname.includes("etherscan") || hostname.includes("ethers") || hostname.includes("blockscan")) {
         const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
-        if (addressMatch) return addressMatch[1];
+        if (addressMatch) return { address: addressMatch[1], isDeBank: false };
       }
       
       // BlockScout
       if (hostname.includes("blockscout")) {
         const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
-        if (addressMatch) return addressMatch[1];
+        if (addressMatch) return { address: addressMatch[1], isDeBank: false };
       }
       
       // Polygon, Arbitrum, Optimism explorers
       if (hostname.includes("polygonscan") || hostname.includes("arbiscan") || hostname.includes("optimistic")) {
         const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
-        if (addressMatch) return addressMatch[1];
+        if (addressMatch) return { address: addressMatch[1], isDeBank: false };
       }
       
       // Direct address in URL path
       const pathMatch = url.pathname.match(/(0x[a-fA-F0-9]{40})/);
-      if (pathMatch) return pathMatch[1];
+      if (pathMatch) return { address: pathMatch[1], isDeBank: false };
       
       // Search in URL parameters
       const addressParam = url.searchParams.get("address") || url.searchParams.get("a");
-      if (addressParam && /^0x[a-fA-F0-9]{40}$/.test(addressParam)) return addressParam;
+      if (addressParam && /^0x[a-fA-F0-9]{40}$/.test(addressParam)) return { address: addressParam, isDeBank: false };
     } catch (error) {
       console.error("Error parsing wallet link:", error);
     }
-    return null;
+    return { address: null, isDeBank: false };
   };
 
-  const fetchWalletBalanceData = async (address: string) => {
+  const fetchWalletBalanceData = async (address: string, isDeBank: boolean = false) => {
     if (!address.startsWith("0x") || address.length !== 42) return;
     
     setWalletLoading(true);
     try {
-      const response = await fetch(`/api/wallet-balance?address=${address}`);
+      const endpoint = isDeBank ? `/api/debank-balance?address=${address}` : `/api/wallet-balance?address=${address}`;
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setCryptoValueUSD(data.balanceUSD.toFixed(2));
@@ -397,6 +405,8 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
+      if (refreshIntervalId) clearInterval(refreshIntervalId);
+      setRefreshIntervalId(null);
       resetForm();
       resetUpdateForm();
       setActiveTab(initialEditAssetId ? "update" : "new");
@@ -458,17 +468,31 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="wallet-link">Link da Wallet (Etherscan, BlockScout, etc)</Label>
+                      <Label htmlFor="wallet-link">Link da Wallet (DeBankAPI, Etherscan, BlockScout, etc)</Label>
                       <Input
                         id="wallet-link"
-                        placeholder="Ex: https://etherscan.io/address/0x083c828b221b126965a146658d4e512337182df1"
+                        placeholder="Ex: https://debank.com/profile/0x083c828b221b126965a146658d4e512337182df1"
                         value={walletLink}
                         onChange={(e) => {
                           setWalletLink(e.target.value);
-                          const parsedAddress = parseWalletAddressFromLink(e.target.value);
-                          if (parsedAddress) {
-                            setWalletAddress(parsedAddress);
-                            fetchWalletBalanceData(parsedAddress);
+                          const result = parseWalletAddressFromLink(e.target.value);
+                          if (result.address) {
+                            setWalletAddress(result.address);
+                            // Clear existing refresh interval
+                            if (refreshIntervalId) clearInterval(refreshIntervalId);
+                            // Fetch immediately
+                            if (result.address) {
+                              fetchWalletBalanceData(result.address, result.isDeBank);
+                              // Set up periodic refresh every 10 minutes for DeBankAPI
+                              if (result.isDeBank) {
+                                const intervalId = setInterval(() => {
+                                  if (result.address) {
+                                    fetchWalletBalanceData(result.address, true);
+                                  }
+                                }, 10 * 60 * 1000);
+                                setRefreshIntervalId(intervalId);
+                              }
+                            }
                           }
                         }}
                         data-testid="input-wallet-link"
