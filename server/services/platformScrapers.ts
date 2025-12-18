@@ -189,54 +189,8 @@ async function scrapeJupiterPortfolioNetWorth(
     page.close().catch(() => {});
   }, timeoutMs);
   
-  let capturedNetWorth: string | null = null;
-  
   try {
-    console.log('[JupiterPortfolio] Starting Network Interception scraper for jup.ag/portfolio');
-    
-    // Setup response interception
-    await page.on('response', async (response) => {
-      try {
-        const url = response.url();
-        const status = response.status();
-        
-        // Intercept API responses that might contain portfolio data
-        if ((url.includes('/api') || url.includes('graphql') || url.includes('portfolio')) && status === 200) {
-          const contentType = response.headers()['content-type'] || '';
-          if (contentType.includes('application/json')) {
-            const body = await response.text();
-            
-            // Search for Net Worth value in JSON response
-            if (body.includes('net') || body.includes('worth') || body.includes('portfolio') || body.includes('balance')) {
-              console.log('[JupiterPortfolio] Checking response from: ' + url);
-              
-              // Look for dollar values in the response
-              const dollarPattern = /\$?\s?\d{1,3}(\.\d{3})*,\d{2}/g;
-              const matches = body.match(dollarPattern);
-              if (matches && matches.length > 0) {
-                console.log('[JupiterPortfolio]   Found values: ' + matches.join(', '));
-                // Capture the largest value as potential Net Worth
-                const largest = matches
-                  .map(m => {
-                    let cleaned = m.replace(/[\$\s]/g, '');
-                    cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
-                    return parseFloat(cleaned);
-                  })
-                  .filter(v => !isNaN(v) && v > 0)
-                  .reduce((a, b) => a > b ? a : b, 0);
-                
-                if (largest > 0 && (!capturedNetWorth || largest > parseFloat(capturedNetWorth))) {
-                  capturedNetWorth = largest.toFixed(2);
-                  console.log('[JupiterPortfolio] Updated Net Worth from network: $' + capturedNetWorth);
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // Silently ignore response parsing errors
-      }
-    });
+    console.log('[JupiterPortfolio] Starting OCR scraper anchored to Net Worth');
     
     // Set viewport
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
@@ -248,39 +202,146 @@ async function scrapeJupiterPortfolioNetWorth(
       console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
     );
     
-    // Wait for network responses to complete
-    console.log('[JupiterPortfolio] Waiting for network responses...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Wait for full rendering
+    console.log('[JupiterPortfolio] Waiting 10 seconds for rendering...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
-    if (!capturedNetWorth) {
-      console.log('[JupiterPortfolio] No Net Worth value captured from network');
+    let netWorthValue: string | null = null;
+    let retryCount = 0;
+    
+    // Retry loop: try OCR up to 2 times
+    while (!netWorthValue && retryCount < 2) {
+      retryCount++;
+      console.log('[JupiterPortfolio] OCR attempt ' + retryCount);
       
-      // Fallback: Try DOM extraction as last resort
-      console.log('[JupiterPortfolio] Attempting DOM fallback...');
-      const domValue = await page.evaluate(() => {
-        const text = document.body.innerText;
-        const netWorthIndex = text.indexOf('Net Worth');
-        if (netWorthIndex === -1) return null;
-        
-        const section = text.substring(netWorthIndex, netWorthIndex + 500);
-        const match = section.match(/\$\s?\d{1,3}(\.\d{3})*,\d{2}/);
-        return match ? match[0] : null;
+      // Step 1: Full page screenshot + OCR to find "Net Worth" position
+      console.log('[JupiterPortfolio] Taking full page screenshot...');
+      const fullScreenshot = await page.screenshot();
+      
+      console.log('[JupiterPortfolio] Running OCR on full page to locate Net Worth...');
+      const fullOcrResult = await Tesseract.recognize(fullScreenshot, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text' && m.progress % 0.2 === 0) {
+            console.log('[JupiterPortfolio] OCR progress: ' + Math.round(m.progress * 100) + '%');
+          }
+        }
       });
       
-      if (domValue) {
-        let cleaned = domValue.replace(/[\$\s]/g, '');
+      const fullText = fullOcrResult.data.text;
+      const netWorthIndex = fullText.indexOf('Net Worth');
+      
+      if (netWorthIndex === -1) {
+        console.log('[JupiterPortfolio] "Net Worth" not found in OCR');
+        if (retryCount < 2) {
+          console.log('[JupiterPortfolio] Retrying after 3 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        continue;
+      }
+      
+      console.log('[JupiterPortfolio] Found "Net Worth" in OCR at position ' + netWorthIndex);
+      
+      // Step 2: Find bounding box of "Net Worth" text in full page
+      const netWorthBounds = await page.evaluate((searchText: string) => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+        
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.textContent && node.textContent.includes(searchText)) {
+            const parent = node.parentElement;
+            if (parent) {
+              const rect = parent.getBoundingClientRect();
+              return {
+                x: Math.max(0, rect.x),
+                y: Math.max(0, rect.y),
+                width: rect.width,
+                height: rect.height
+              };
+            }
+          }
+        }
+        return null;
+      }, 'Net Worth');
+      
+      if (!netWorthBounds) {
+        console.log('[JupiterPortfolio] Could not find Net Worth bounds in DOM');
+        if (retryCount < 2) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+        continue;
+      }
+      
+      console.log('[JupiterPortfolio] Net Worth bounds: ' + JSON.stringify(netWorthBounds));
+      
+      // Step 3: Recrop region BELOW "Net Worth" (40-120px offset)
+      const regionBelowNetWorth = {
+        x: Math.max(0, netWorthBounds.x - 50),
+        y: Math.max(0, netWorthBounds.y + netWorthBounds.height + 40),  // 40px below
+        width: Math.min(netWorthBounds.width + 100, 600),
+        height: 80  // Small height to capture just the value
+      };
+      
+      console.log('[JupiterPortfolio] Cropping region below Net Worth: ' + JSON.stringify(regionBelowNetWorth));
+      
+      // Step 4: Screenshot of cropped region
+      const croppedScreenshot = await page.screenshot({
+        clip: regionBelowNetWorth
+      });
+      
+      // Step 5: OCR on cropped region
+      console.log('[JupiterPortfolio] Running OCR on cropped Net Worth region...');
+      const croppedOcrResult = await Tesseract.recognize(croppedScreenshot, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            console.log('[JupiterPortfolio] Cropped OCR progress: ' + Math.round(m.progress * 100) + '%');
+          }
+        }
+      });
+      
+      const croppedText = croppedOcrResult.data.text;
+      console.log('[JupiterPortfolio] Cropped OCR text: [' + croppedText.replace(/\n/g, ' | ') + ']');
+      
+      // Step 6: Extract first valid dollar value >= $50
+      const dollarPattern = /\$\s?\d{1,3}(\.\d{3})*,\d{2}/g;
+      const matches = croppedText.match(dollarPattern) || [];
+      
+      console.log('[JupiterPortfolio] Found ' + matches.length + ' dollar values in cropped region');
+      
+      for (const match of matches) {
+        let cleaned = match.replace(/[\$\s]/g, '');
         cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
-        capturedNetWorth = parseFloat(cleaned).toFixed(2);
-        console.log('[JupiterPortfolio] DOM fallback found: $' + capturedNetWorth);
+        const numValue = parseFloat(cleaned);
+        
+        console.log('[JupiterPortfolio]   Value: ' + match + ' → $' + numValue.toFixed(2));
+        
+        // Validation: must be >= $50
+        if (numValue >= 50) {
+          netWorthValue = numValue.toFixed(2);
+          console.log('[JupiterPortfolio] VALID Net Worth found: $' + netWorthValue);
+          break;
+        } else {
+          console.log('[JupiterPortfolio]   Rejected (< $50)');
+        }
+      }
+      
+      if (!netWorthValue && retryCount < 2) {
+        console.log('[JupiterPortfolio] No valid value found, retrying after 3 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
     
-    if (!capturedNetWorth) {
-      return { value: null, success: false, platform: 'jupiter', error: 'No Net Worth value found' };
+    if (!netWorthValue) {
+      console.log('[JupiterPortfolio] Failed to extract Net Worth after retries');
+      return { value: null, success: false, platform: 'jupiter', error: 'Net Worth extraction failed' };
     }
     
-    console.log('[JupiterPortfolio] SUCCESS - Net Worth: $' + capturedNetWorth);
-    return { value: '$' + capturedNetWorth, success: true, platform: 'jupiter' };
+    console.log('[JupiterPortfolio] SUCCESS - Net Worth: $' + netWorthValue);
+    return { value: '$' + netWorthValue, success: true, platform: 'jupiter' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[JupiterPortfolio] Error:', msg);
