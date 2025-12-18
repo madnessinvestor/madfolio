@@ -77,7 +77,8 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
         for (let i = 0; i < Math.min(lines.length, 30); i++) {
           const line = lines[i];
           
-          // Look for pattern: $X,XXX -Y.YY% or $X +Y.YY% (the top-right value with percentage change)
+          // Look for pattern: $X,XXX -Y.YY% or $X +Y.YY% (both negative and positive changes)
+          // This matches the portfolio total value in the top-right corner with its percentage change
           const match = line.match(/^\$\s*([\d,]+(?:\.\d{2})?)\s+[-+][\d.]+%/);
           if (match) {
             const value = match[1];
