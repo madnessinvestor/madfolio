@@ -83,7 +83,7 @@ function AuthenticatedApp() {
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm hidden sm:inline">
-                      {user.firstName || user.email}
+                      {user.firstName || user.username || user.email}
                     </span>
                     <Button variant="ghost" size="icon" asChild>
                       <a href="/api/logout">

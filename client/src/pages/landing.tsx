@@ -10,14 +10,15 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthFormData {
-  email: string;
+  email?: string;
+  credential?: string;
   password: string;
   username?: string;
 }
 
 export default function LandingPage() {
   const { toast } = useToast();
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginCredential, setLoginCredential] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [registerUsername, setRegisterUsername] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
@@ -61,8 +62,8 @@ export default function LandingPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginEmail || !loginPassword) return;
-    loginMutation.mutate({ email: loginEmail, password: loginPassword });
+    if (!loginCredential || !loginPassword) return;
+    loginMutation.mutate({ credential: loginCredential, password: loginPassword });
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -161,17 +162,17 @@ export default function LandingPage() {
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="login-email">Email</Label>
+                      <Label htmlFor="login-credential">Email ou Usuário</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input
-                          id="login-email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={loginEmail}
-                          onChange={(e) => setLoginEmail(e.target.value)}
+                          id="login-credential"
+                          type="text"
+                          placeholder="seu@email.com ou seu_usuario"
+                          value={loginCredential}
+                          onChange={(e) => setLoginCredential(e.target.value)}
                           className="pl-10"
-                          data-testid="input-login-email"
+                          data-testid="input-login-credential"
                         />
                       </div>
                     </div>

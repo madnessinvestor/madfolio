@@ -12,7 +12,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email("Email inválido"),
+  credential: z.string().min(1, "Email ou usuário é obrigatório"),
   password: z.string().min(1, "Senha é obrigatória"),
 });
 
@@ -67,15 +67,25 @@ export function setupCredentialAuth(app: Express) {
     try {
       const validated = loginSchema.parse(req.body);
       
-      const [user] = await db.select().from(users).where(eq(users.email, validated.email));
+      // Try to find user by email or username
+      let user;
+      const emailResult = await db.select().from(users).where(eq(users.email, validated.credential));
+      if (emailResult.length > 0) {
+        user = emailResult[0];
+      } else {
+        const usernameResult = await db.select().from(users).where(eq(users.username, validated.credential));
+        if (usernameResult.length > 0) {
+          user = usernameResult[0];
+        }
+      }
       
       if (!user || !user.passwordHash) {
-        return res.status(401).json({ message: "Email ou senha incorretos" });
+        return res.status(401).json({ message: "Email, usuário ou senha incorretos" });
       }
 
       const validPassword = await bcrypt.compare(validated.password, user.passwordHash);
       if (!validPassword) {
-        return res.status(401).json({ message: "Email ou senha incorretos" });
+        return res.status(401).json({ message: "Email, usuário ou senha incorretos" });
       }
 
       (req as any).login({
