@@ -275,7 +275,63 @@ async function scrapeJupiterPortfolioNetWorth(
       }
     }
     
-    console.log('[JupiterPortfolio] Could not find valid positive monetary values');
+    console.log('[JupiterPortfolio] No values passed semantic filter - initiating fallback strategy');
+    
+    // ============================================================================
+    // FALLBACK: Wait and retry without semantic filters
+    // ============================================================================
+    
+    console.log('[JupiterPortfolio] Waiting 4 seconds for late-loading DOM content...');
+    await new Promise(resolve => setTimeout(resolve, 4000));
+    
+    console.log('[JupiterPortfolio] Extracting all monetary values (fallback - no semantic filters)');
+    
+    // Extract ALL monetary values without semantic filtering
+    const fallbackValues = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      
+      // Match both European format ($1.911,36) and US format ($1,911.36)
+      const regex = /\$[\d.,]+/g;
+      const matches = fullText.match(regex);
+      
+      if (!matches || matches.length === 0) {
+        console.log('[JupiterPortfolio] No dollar values found in fallback');
+        return null;
+      }
+      
+      console.log('[JupiterPortfolio] Found ' + matches.length + ' monetary values in fallback');
+      return matches;
+    });
+    
+    if (fallbackValues && fallbackValues.length > 0) {
+      console.log('[JupiterPortfolio] Fallback values: ' + fallbackValues.join(', '));
+      
+      // Normalize and find the largest POSITIVE value
+      let maxFallbackValue = 0;
+      let maxFallbackFormattedValue = '';
+      
+      for (const rawValue of fallbackValues) {
+        // Normalize format
+        const normalizedValue = normalizeJupiterValue(rawValue);
+        const numericValue = parseFloat(normalizedValue);
+        
+        console.log('[JupiterPortfolio] Fallback evaluated ' + rawValue + ' → ' + numericValue);
+        
+        // Only consider positive, valid values
+        if (!isNaN(numericValue) && numericValue > 0 && numericValue > maxFallbackValue) {
+          maxFallbackValue = numericValue;
+          maxFallbackFormattedValue = normalizedValue;
+        }
+      }
+      
+      if (maxFallbackValue > 0 && maxFallbackFormattedValue !== '') {
+        const fallbackFinalValue = '$' + maxFallbackFormattedValue;
+        console.log('[JupiterPortfolio] FALLBACK VALIDATION PASSED - Largest value found: ' + fallbackFinalValue);
+        return { value: fallbackFinalValue, success: true, platform: 'jupiter' };
+      }
+    }
+    
+    console.log('[JupiterPortfolio] Fallback also failed - Could not find valid positive monetary values');
     return { value: null, success: false, platform: 'jupiter', error: 'No valid portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
