@@ -48,6 +48,8 @@ interface AddInvestmentDialogProps {
   onAdd: (investment: Omit<Investment, "id" | "currentPrice">) => void;
   onAddSnapshot?: (snapshot: Snapshot) => void;
   isLoading?: boolean;
+  initialEditAssetId?: string;
+  existingAssets?: ExistingAsset[];
 }
 
 const categoryLabels: Record<AssetCategory, string> = {
@@ -80,9 +82,9 @@ interface ExistingAsset {
   market: string;
 }
 
-export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading }: AddInvestmentDialogProps) {
+export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEditAssetId, existingAssets: providedAssets }: AddInvestmentDialogProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"new" | "update">("new");
+  const [activeTab, setActiveTab] = useState<"new" | "update">(initialEditAssetId ? "update" : "new");
   
   // New investment form state
   const [market, setMarket] = useState<MarketType>("crypto");
@@ -102,11 +104,23 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading }: AddInve
   const [updateDate, setUpdateDate] = useState(new Date().toISOString().split("T")[0]);
   const [updateNotes, setUpdateNotes] = useState("");
 
-  // Fetch existing assets for the update tab
-  const { data: existingAssets = [] } = useQuery<ExistingAsset[]>({
+  // Fetch existing assets for the update tab (or use provided assets)
+  const { data: fetchedAssets = [] } = useQuery<ExistingAsset[]>({
     queryKey: ["/api/assets"],
-    enabled: open,
+    enabled: open && !providedAssets,
   });
+  
+  const existingAssets = providedAssets || fetchedAssets;
+  
+  // Set selected asset if initialEditAssetId is provided
+  useEffect(() => {
+    if (initialEditAssetId && existingAssets.length > 0) {
+      setSelectedAssetId(initialEditAssetId);
+      setUpdateValue("");
+      setUpdateDate(new Date().toISOString().split("T")[0]);
+      setUpdateNotes("");
+    }
+  }, [initialEditAssetId, existingAssets]);
 
   const fetchCurrentPrice = useCallback(async (symbolToFetch: string, marketType: MarketType) => {
     if (marketType === "fixed_income") {
@@ -265,7 +279,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading }: AddInve
     if (!isOpen) {
       resetForm();
       resetUpdateForm();
-      setActiveTab("new");
+      setActiveTab(initialEditAssetId ? "update" : "new");
     }
   };
 

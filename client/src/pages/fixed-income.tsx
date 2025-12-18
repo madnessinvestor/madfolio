@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
-import { AddFixedIncomeDialog, type FixedIncomeInvestment } from "@/components/dashboard/AddFixedIncomeDialog";
+import { AddInvestmentDialog, type Investment } from "@/components/dashboard/AddInvestmentDialog";
 import { Landmark, TrendingUp, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -49,23 +49,16 @@ export default function FixedIncomePage() {
   const { formatCurrency } = useCurrencyConverter();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; symbol: string } | null>(null);
+  const [editingAssetId, setEditingAssetId] = useState<string | undefined>(undefined);
+  const dialogRef = useRef<any>(null);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
   });
 
   const createInvestmentMutation = useMutation({
-    mutationFn: async (investment: FixedIncomeInvestment) => {
-      return apiRequest("POST", "/api/investments", { 
-        name: investment.name,
-        symbol: investment.name.substring(0, 10),
-        category: "fixed_income",
-        market: "fixed_income",
-        quantity: 1,
-        acquisitionPrice: investment.value,
-        acquisitionDate: new Date().toISOString().split("T")[0],
-        currency: "BRL"
-      });
+    mutationFn: async (investment: Omit<Investment, "id" | "currentPrice">) => {
+      return apiRequest("POST", "/api/investments", { ...investment, currency: "BRL" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
@@ -112,15 +105,13 @@ export default function FixedIncomePage() {
     type: "stock",
   }));
 
-  const handleAddInvestment = (investment: FixedIncomeInvestment) => {
+  const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
     createInvestmentMutation.mutate(investment);
+    setEditingAssetId(undefined);
   };
 
   const handleEdit = (holding: Holding) => {
-    toast({
-      title: "Editar ativo",
-      description: `Use o botão "Adicionar Investimento" para atualizar ${holding.symbol}.`,
-    });
+    setEditingAssetId(holding.id);
   };
 
   const handleDelete = (holding: Holding) => {
@@ -161,7 +152,13 @@ export default function FixedIncomePage() {
           <p className="text-muted-foreground">Investimentos com rendimento fixo e previsível</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AddFixedIncomeDialog onAdd={handleAddInvestment} isLoading={createInvestmentMutation.isPending} />
+          <AddInvestmentDialog 
+            onAdd={handleAddInvestment} 
+            onAddSnapshot={() => {}} 
+            isLoading={createInvestmentMutation.isPending}
+            initialEditAssetId={editingAssetId}
+            existingAssets={summary?.holdings.map(h => ({ id: h.id, symbol: h.symbol, name: h.name, market: h.market })) || []}
+          />
         </div>
       </div>
 

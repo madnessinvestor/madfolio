@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
@@ -49,6 +49,7 @@ export default function VariableIncomePage() {
   const { formatCurrency } = useCurrencyConverter();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; symbol: string } | null>(null);
+  const [editingAssetId, setEditingAssetId] = useState<string | undefined>(undefined);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
@@ -127,17 +128,16 @@ export default function VariableIncomePage() {
 
   const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
     createInvestmentMutation.mutate(investment);
+    setEditingAssetId(undefined);
   };
 
   const handleAddSnapshot = (snapshot: Snapshot) => {
     createSnapshotMutation.mutate(snapshot);
+    setEditingAssetId(undefined);
   };
 
   const handleEdit = (holding: Holding) => {
-    toast({
-      title: "Editar ativo",
-      description: `Use o botão "Adicionar Investimento" para atualizar ${holding.symbol}.`,
-    });
+    setEditingAssetId(holding.id);
   };
 
   const handleDelete = (holding: Holding) => {
@@ -179,7 +179,13 @@ export default function VariableIncomePage() {
           <p className="text-muted-foreground">Ações, FIIs e ETFs com preços atualizados automaticamente</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AddInvestmentDialog onAdd={handleAddInvestment} onAddSnapshot={handleAddSnapshot} isLoading={createInvestmentMutation.isPending || createSnapshotMutation.isPending} />
+          <AddInvestmentDialog 
+            onAdd={handleAddInvestment} 
+            onAddSnapshot={handleAddSnapshot} 
+            isLoading={createInvestmentMutation.isPending || createSnapshotMutation.isPending}
+            initialEditAssetId={editingAssetId}
+            existingAssets={summary?.holdings.map(h => ({ id: h.id, symbol: h.symbol, name: h.name, market: h.market })) || []}
+          />
         </div>
       </div>
 
