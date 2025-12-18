@@ -11,6 +11,7 @@ import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, force
 import { getWalletHistory, getAllHistory, getLatestByWallet, getWalletStats } from "./services/walletCache";
 import { insertWalletSchema } from "@shared/schema";
 import { fetchJupPortfolio } from "./services/jupAgScraper";
+import { validateCredentials } from "./sqlite-auth";
 
 const investmentSchema = z.object({
   name: z.string().min(1),
@@ -29,6 +30,22 @@ export async function registerRoutes(
 ): Promise<Server> {
   startPriceUpdater(5 * 60 * 1000);
   startStepMonitor(60 * 60 * 1000); // 1 hour with 5 second spacing between wallets
+
+  // SQLite authentication routes
+  app.get("/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.post("/login", (req, res) => {
+    const { usernameOrEmail, password } = req.body;
+    const result = validateCredentials(usernameOrEmail, password);
+    
+    if (!result.success) {
+      return res.status(401).json(result);
+    }
+
+    res.json(result);
+  });
 
   app.get("/api/assets", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;

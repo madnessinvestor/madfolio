@@ -61,6 +61,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize SQLite database
+  try {
+    const { initializeDatabase } = await import("./sqlite-db");
+    initializeDatabase();
+    log("[SQLite] Database initialized");
+  } catch (error) {
+    console.error("[SQLite] Error initializing database:", error);
+  }
+
   await setupAuth(app);
   setupCredentialAuth(app);
   registerAuthRoutes(app);
