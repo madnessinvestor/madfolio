@@ -69,15 +69,53 @@ export default function LandingPage() {
     loginMutation.mutate({ credential: loginCredential, password: loginPassword });
   };
 
+  const compressImage = (file: File, callback: (compressed: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        // Redimensionar se necessário (máximo 400x400)
+        const maxDimension = 400;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+
+        // Converter para JPEG com qualidade reduzida (0.7)
+        const compressed = canvas.toDataURL("image/jpeg", 0.7);
+        callback(compressed);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tamanho máximo de 500KB
-      const maxSizeInBytes = 500 * 1024; // 500KB
+      // Validar tamanho máximo de 2MB (antes da compressão)
+      const maxSizeInBytes = 2 * 1024 * 1024; // 2MB
       if (file.size > maxSizeInBytes) {
         toast({
           title: "Arquivo muito grande",
-          description: `A foto deve ter no máximo 500KB. Seu arquivo tem ${(file.size / 1024).toFixed(2)}KB.`,
+          description: `A foto deve ter no máximo 2MB. Seu arquivo tem ${(file.size / 1024 / 1024).toFixed(2)}MB.`,
           variant: "destructive",
         });
         return;
@@ -94,12 +132,20 @@ export default function LandingPage() {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setRegisterProfileImage(result);
-      };
-      reader.readAsDataURL(file);
+      // Comprimir imagem
+      compressImage(file, (compressed) => {
+        // Validar tamanho após compressão
+        const compressedSizeInKB = (compressed.length * 0.75) / 1024; // base64 é ~33% maior
+        if (compressedSizeInKB > 200) {
+          toast({
+            title: "Imagem ainda muito grande após compressão",
+            description: "Tente usar uma imagem menor ou de menor resolução.",
+            variant: "destructive",
+          });
+          return;
+        }
+        setRegisterProfileImage(compressed);
+      });
     }
   };
 
