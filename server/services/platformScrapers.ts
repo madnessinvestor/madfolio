@@ -2,6 +2,7 @@
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import type { Browser, Page } from 'puppeteer';
+import Tesseract from 'tesseract.js';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -180,7 +181,7 @@ function normalizeJupiterValue(rawValue: string): string {
 async function scrapeJupiterPortfolioNetWorth(
   browser: Browser,
   walletLink: string,
-  timeoutMs: number = 30000
+  timeoutMs: number = 45000
 ): Promise<ScraperResult> {
   const page = await browser.newPage();
   const timeoutId = setTimeout(() => {
@@ -188,111 +189,131 @@ async function scrapeJupiterPortfolioNetWorth(
   }, timeoutMs);
   
   try {
-    console.log('[JupiterPortfolio] Starting DOM scraper for positions (jup.ag/portfolio)');
+    console.log('[JupiterPortfolio] Starting OCR visual scraper for jup.ag/portfolio');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    // Navigate and wait
-    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 25000 }).catch(e => 
+    // Navigate and wait for complete load
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 35000 }).catch(e => 
       console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
     );
     
-    console.log('[JupiterPortfolio] Waiting 5 seconds for positions to fully load...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    console.log('[JupiterPortfolio] Waiting 8 seconds for visual rendering...');
+    await new Promise(resolve => setTimeout(resolve, 8000));
     
-    // Extract all visible USD values from positions, filtering out Holdings, PnL, Claimable
-    const positionsTotal = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      
-      const values = [];
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
-        const contextBefore = i > 0 ? lines[i - 1].toLowerCase() : '';
-        const contextAfter = nextLine.toLowerCase();
-        
-        // Match dollar values: $1,234.56 or $1.234,56 (Brazilian format)
-        const dollarMatch = line.match(/\$[\d.,]+(?:\.\d{2})?/);
-        
-        if (!dollarMatch) continue;
-        
-        const rawValue = dollarMatch[0];
-        const lowerLine = line.toLowerCase() + ' ' + contextBefore + ' ' + contextAfter;
-        
-        // FILTER: Skip Holdings, PnL, Claimable
-        if (lowerLine.includes('holdings') || 
-            lowerLine.includes('pnl') || 
-            lowerLine.includes('claimable') ||
-            lowerLine.includes('your balance')) {
-          continue;
-        }
-        
-        // Skip if negative or preceded by minus
-        if (line.includes('−') || line.includes('-' + rawValue) || lowerLine.includes('−' + rawValue)) {
-          continue;
-        }
-        
-        // Normalize value: $1.486,87 → 1486.87
-        let normalized = rawValue.replace(/[\$\s]/g, '');
-        
-        // Check if format is $1.234,56 (European/Brazilian) or $1,234.56 (US)
-        if (normalized.includes('.') && normalized.includes(',')) {
-          // Has both . and , - determine which is thousand separator
-          const lastDot = normalized.lastIndexOf('.');
-          const lastComma = normalized.lastIndexOf(',');
-          
-          if (lastDot > lastComma) {
-            // $1.234.567,89 or $1,000.50 format - dot is thousand separator
-            normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
-          } else {
-            // $1,234.56 format - comma is thousand separator
-            normalized = normalized.replace(/,/g, '');
-          }
-        } else if (normalized.includes(',')) {
-          // Only comma: $1.234,56 → 1234.56
-          normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
-        }
-        // else: $1234.56 stays as is
-        
-        const numValue = parseFloat(normalized);
-        
-        if (!isNaN(numValue) && numValue > 0) {
-          values.push({
-            raw: rawValue,
-            normalized: numValue,
-            line: line
-          });
+    // Take screenshot of top-left region (where Net Worth typically appears)
+    console.log('[JupiterPortfolio] Taking screenshot for OCR...');
+    const screenshot = await page.screenshot({
+      clip: {
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 400
+      }
+    });
+    
+    // Extract text using Tesseract OCR
+    console.log('[JupiterPortfolio] Running OCR on screenshot...');
+    const result = await Tesseract.recognize(screenshot, 'eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          console.log('[JupiterPortfolio] OCR progress: ' + Math.round(m.progress * 100) + '%');
         }
       }
+    });
+    
+    const ocrText = result.data.text;
+    console.log('[JupiterPortfolio] OCR extracted text (first 500 chars): ' + ocrText.substring(0, 500).replace(/\n/g, ' | '));
+    
+    // Search for Net Worth value in OCR text
+    // Patterns: $1,234.56 or $1.234,56 (Brazilian format)
+    const dollarPattern = /\$[\d.,]+(?:\.\d{2})?/g;
+    const matches = ocrText.match(dollarPattern) || [];
+    
+    console.log('[JupiterPortfolio] Found ' + matches.length + ' dollar values in OCR');
+    for (const m of matches) {
+      console.log('[JupiterPortfolio]   ' + m);
+    }
+    
+    if (matches.length === 0) {
+      console.log('[JupiterPortfolio] No Net Worth value found in OCR');
+      return { value: null, success: false, platform: 'jupiter', error: 'No Net Worth value found in OCR' };
+    }
+    
+    // Get the largest value (should be Net Worth, which is typically the biggest number on that region)
+    const values = matches.map(m => ({
+      raw: m,
+      normalized: parseFloat(m.replace(/[\$.,]/g, (match, offset, str) => {
+        // Determine if it's Brazilian format ($1.234,56) or US format ($1,234.56)
+        const cleanStr = str.substring(1); // Remove $
+        if (cleanStr.includes('.') && cleanStr.includes(',')) {
+          const lastDot = cleanStr.lastIndexOf('.');
+          const lastComma = cleanStr.lastIndexOf(',');
+          if (lastDot > lastComma) {
+            // Dot is decimal separator
+            return match === '.' ? '.' : '';
+          } else {
+            // Comma is decimal separator
+            return match === ',' ? '.' : '';
+          }
+        } else if (cleanStr.includes(',')) {
+          // Only comma - could be decimal or thousands
+          const afterComma = cleanStr.substring(cleanStr.lastIndexOf(',') + 1);
+          if (afterComma.length === 2) {
+            // Decimal separator
+            return match === ',' ? '.' : '';
+          } else {
+            // Thousands separator
+            return '';
+          }
+        }
+        return '';
+      }))
+    }));
+    
+    // Normalize properly
+    const normalizedValues = matches.map(m => {
+      let normalized = m.replace(/[\$\s]/g, '');
       
-      // Sum all values
-      const total = values.reduce((sum, v) => sum + v.normalized, 0);
+      // Detect format
+      if (normalized.includes('.') && normalized.includes(',')) {
+        const lastDot = normalized.lastIndexOf('.');
+        const lastComma = normalized.lastIndexOf(',');
+        
+        if (lastDot > lastComma) {
+          // $1.234.567,89 or $1,000.50 - dot is thousand separator
+          normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+        } else {
+          // $1,234.56 - comma is thousand separator
+          normalized = normalized.replace(/,/g, '');
+        }
+      } else if (normalized.includes(',')) {
+        // Only comma: $1.234,56 → 1234.56
+        normalized = normalized.replace(/\./g, '').replace(/,/g, '.');
+      }
       
+      const numValue = parseFloat(normalized);
       return {
-        values: values,
-        total: total,
-        count: values.length
+        raw: m,
+        normalized: numValue
       };
     });
     
-    console.log('[JupiterPortfolio] Found ' + positionsTotal.count + ' position values');
-    for (const v of positionsTotal.values) {
-      console.log('[JupiterPortfolio]   ' + v.raw + ' → $' + v.normalized.toFixed(2));
+    // Filter values > 10 and get the largest
+    const validValues = normalizedValues.filter(v => !isNaN(v.normalized) && v.normalized > 10);
+    if (validValues.length === 0) {
+      console.log('[JupiterPortfolio] No valid Net Worth values found');
+      return { value: null, success: false, platform: 'jupiter', error: 'No valid Net Worth values found' };
     }
     
-    if (positionsTotal.total > 0) {
-      const formattedTotal = '$' + positionsTotal.total.toFixed(2);
-      console.log('[JupiterPortfolio] TOTAL Estimated Portfolio Value: ' + formattedTotal);
-      return { value: formattedTotal, success: true, platform: 'jupiter' };
-    }
+    const netWorthValue = validValues.reduce((a, b) => a.normalized > b.normalized ? a : b);
+    console.log('[JupiterPortfolio] Selected Net Worth value: ' + netWorthValue.raw + ' = $' + netWorthValue.normalized.toFixed(2));
+    console.log('[JupiterPortfolio] SUCCESS - OCR Net Worth extracted: $' + netWorthValue.normalized.toFixed(2));
     
-    console.log('[JupiterPortfolio] No position values found');
-    return { value: null, success: false, platform: 'jupiter', error: 'No position values found' };
+    return { value: '$' + netWorthValue.normalized.toFixed(2), success: true, platform: 'jupiter' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[JupiterPortfolio] Error:', msg);
+    console.error('[JupiterPortfolio] OCR Error:', msg);
     return { value: null, success: false, platform: 'jupiter', error: msg };
   } finally {
     clearTimeout(timeoutId);
