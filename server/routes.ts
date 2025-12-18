@@ -8,6 +8,7 @@ import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
 import { fetchWalletBalance } from "./services/walletBalance";
 import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets, forceRefreshWallet } from "./services/debankScraper";
+import { getWalletHistory, getAllHistory, getLatestByWallet, getWalletStats } from "./services/walletCache";
 import { insertWalletSchema } from "@shared/schema";
 
 const investmentSchema = z.object({
@@ -505,6 +506,50 @@ export async function registerRoutes(
       res.json({ message: "Wallet refreshed", balance: updatedBalance });
     } catch (error) {
       res.status(500).json({ error: "Failed to refresh wallet balance" });
+    }
+  });
+
+  app.get("/api/saldo/history/:walletName", async (req, res) => {
+    try {
+      const walletName = decodeURIComponent(req.params.walletName);
+      const limit = parseInt(req.query.limit as string) || 100;
+      const history = getWalletHistory(walletName, limit);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch wallet history" });
+    }
+  });
+
+  app.get("/api/saldo/history", async (req, res) => {
+    try {
+      const history = getAllHistory();
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch history" });
+    }
+  });
+
+  app.get("/api/saldo/latest", async (req, res) => {
+    try {
+      const latest = getLatestByWallet();
+      res.json(latest);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch latest balances" });
+    }
+  });
+
+  app.get("/api/saldo/stats/:walletName", async (req, res) => {
+    try {
+      const walletName = decodeURIComponent(req.params.walletName);
+      const stats = getWalletStats(walletName);
+      
+      if (!stats) {
+        return res.status(404).json({ error: "No data for this wallet" });
+      }
+      
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch wallet stats" });
     }
   });
 

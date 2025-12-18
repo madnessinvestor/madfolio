@@ -1,6 +1,7 @@
 import puppeteer, { Browser } from 'puppeteer';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { addCacheEntry } from './walletCache';
 
 const execAsync = promisify(exec);
 
@@ -277,6 +278,9 @@ async function scrapeWalletBalanceWithRetry(
       if (isValidBalance) {
         console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Success: ${cleanBalance}`);
         
+        // Save to persistent cache
+        addCacheEntry(wallet.name, cleanBalance, wallet.link.includes('step.finance') ? 'step' : 'debank', 'success');
+        
         const cachedEntry = balanceCache.get(wallet.name);
         return {
           id: wallet.id,
@@ -312,6 +316,10 @@ async function scrapeWalletBalanceWithRetry(
   
   if (cachedEntry?.lastKnownValue) {
     console.log(`[Step.finance] All retries failed for ${wallet.name}, using cached value: ${cachedEntry.lastKnownValue}`);
+    
+    // Save error attempt to persistent cache
+    addCacheEntry(wallet.name, cachedEntry.lastKnownValue, wallet.link.includes('step.finance') ? 'step' : 'debank', 'temporary_error');
+    
     return {
       id: wallet.id,
       name: wallet.name,

@@ -3,10 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw, Wallet, ExternalLink, Trash2, Plus } from "lucide-react";
+import { Loader2, RefreshCw, Wallet, ExternalLink, Trash2, Plus, TrendingUp, TrendingDown } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface WalletBalance {
   id?: string;
@@ -24,10 +31,21 @@ export default function WalletTracker() {
   const [newWalletName, setNewWalletName] = useState("");
   const [newWalletLink, setNewWalletLink] = useState("");
   const [isAddingWallet, setIsAddingWallet] = useState(false);
+  const [selectedWalletForHistory, setSelectedWalletForHistory] = useState<string | null>(null);
 
   const { data: balances, isLoading, error } = useQuery<WalletBalance[]>({
     queryKey: ["/api/saldo/detailed"],
     refetchInterval: 60000,
+  });
+
+  const { data: stats } = useQuery<any>({
+    queryKey: ["/api/saldo/stats", selectedWalletForHistory],
+    enabled: !!selectedWalletForHistory,
+  });
+
+  const { data: history } = useQuery<any[]>({
+    queryKey: ["/api/saldo/history", selectedWalletForHistory],
+    enabled: !!selectedWalletForHistory,
   });
 
   const refreshMutation = useMutation({
@@ -212,6 +230,15 @@ export default function WalletTracker() {
                     <Button
                       size="icon"
                       variant="ghost"
+                      onClick={() => setSelectedWalletForHistory(wallet.name)}
+                      data-testid={`button-view-history-${wallet.id}`}
+                      title="Ver histórico"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       onClick={() => refreshWalletMutation.mutate(wallet.name)}
                       disabled={refreshWalletMutation.isPending}
                       data-testid={`button-refresh-wallet-${wallet.id}`}
@@ -343,9 +370,106 @@ export default function WalletTracker() {
       </div>
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
-        Os saldos sao obtidos via scraping de múltiplas plataformas usando Puppeteer. 
-        A atualizacao automatica ocorre a cada 1 hora com intervalos de 10 segundos entre wallets.
+        Os saldos são obtidos via scraping de múltiplas plataformas usando Puppeteer. 
+        A atualização automática ocorre a cada 1 hora com intervalos de 5 segundos entre wallets.
+        Histórico completo salvo no cache do backend.
       </div>
+
+      {/* History Dialog */}
+      <Dialog open={!!selectedWalletForHistory} onOpenChange={(open) => !open && setSelectedWalletForHistory(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedWalletForHistory} - Histórico e Estatísticas</DialogTitle>
+            <DialogDescription>
+              Visualize o histórico de saldos e tendências
+            </DialogDescription>
+          </DialogHeader>
+
+          {stats && (
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Atual</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">${stats.currentBalance.toFixed(2)}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {stats.change >= 0 ? 'Ganho' : 'Perda'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center gap-2">
+                  <div className="text-2xl font-bold">
+                    {stats.change >= 0 ? '+' : ''}{stats.change.toFixed(2)}
+                  </div>
+                  {stats.change >= 0 ? (
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-red-500" />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Mínimo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg">${stats.minBalance.toFixed(2)}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Máximo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg">${stats.maxBalance.toFixed(2)}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Média</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg">${stats.avgBalance.toFixed(2)}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Variação</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-lg font-semibold ${stats.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {stats.changePercent >= 0 ? '+' : ''}{stats.changePercent.toFixed(2)}%
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h3 className="font-semibold">Últimas 20 Atualizações</h3>
+            {history?.slice(0, 20).map((entry, idx) => (
+              <div key={idx} className="flex justify-between items-center p-2 border rounded text-sm">
+                <span className="text-muted-foreground">
+                  {new Date(entry.timestamp).toLocaleString('pt-BR')}
+                </span>
+                <span className="font-medium">{entry.balance}</span>
+                <Badge variant={entry.status === 'success' ? 'outline' : 'secondary'} className="text-xs">
+                  {entry.status === 'success' ? '✓' : '◐'}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
