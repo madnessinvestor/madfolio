@@ -110,7 +110,7 @@ interface ExistingAsset {
 
 export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, initialEditAssetId, existingAssets: providedAssets }: AddInvestmentDialogProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"new" | "update">(initialEditAssetId ? "update" : "new");
+  const [activeTab, setActiveTab] = useState<"new">("new");
   
   // New investment form state
   const [market, setMarket] = useState<MarketType>("crypto");
@@ -134,12 +134,6 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
   const [walletLoading, setWalletLoading] = useState(false);
   const [refreshIntervalId, setRefreshIntervalId] = useState<NodeJS.Timeout | null>(null);
 
-  // Update value form state
-  const [selectedAssetId, setSelectedAssetId] = useState("");
-  const [updateValue, setUpdateValue] = useState("");
-  const [updateDate, setUpdateDate] = useState(new Date().toISOString().split("T")[0]);
-  const [updateNotes, setUpdateNotes] = useState("");
-  const [selectedAssetMarket, setSelectedAssetMarket] = useState<MarketType | "">("");
 
   // Fetch existing assets for the update tab (or use provided assets)
   const { data: fetchedAssets = [] } = useQuery<ExistingAsset[]>({
@@ -161,15 +155,6 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
   
   const existingAssets = providedAssets || fetchedAssets;
   
-  // Set selected asset if initialEditAssetId is provided
-  useEffect(() => {
-    if (initialEditAssetId && existingAssets.length > 0) {
-      setSelectedAssetId(initialEditAssetId);
-      setUpdateValue("");
-      setUpdateDate(new Date().toISOString().split("T")[0]);
-      setUpdateNotes("");
-    }
-  }, [initialEditAssetId, existingAssets]);
 
   const fetchCurrentPrice = useCallback(async (symbolToFetch: string, marketType: MarketType) => {
     if (marketType === "fixed_income" || marketType === "crypto_simplified") {
@@ -298,50 +283,6 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
     setOpen(false);
   };
 
-  const handleUpdateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAssetId) return;
-
-    // If using snapshot mode (legacy) - just add snapshot
-    if (updateValue && updateDate && onAddSnapshot && !onEdit) {
-      const valueString = updateValue.replace(/[^\d.,]/g, "");
-      const parsedValue = parseFloat(valueString.replace(/\./g, "").replace(",", "."));
-
-      if (isNaN(parsedValue)) return;
-
-      onAddSnapshot({
-        assetId: selectedAssetId,
-        value: parsedValue,
-        date: updateDate,
-        notes: updateNotes || undefined,
-      });
-
-      resetUpdateForm();
-      setOpen(false);
-      return;
-    }
-
-    // Edit mode - update full investment details
-    if (onEdit && name && acquisitionPrice && market) {
-      const priceString = acquisitionPrice.replace(/[^\d.,]/g, "");
-      const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
-      if (isNaN(parsedPrice)) return;
-
-      onEdit(selectedAssetId, {
-        name,
-        symbol: symbol || name.substring(0, 10),
-        category,
-        market,
-        quantity: parseFloat(quantity) || 1,
-        acquisitionPrice: parsedPrice,
-        acquisitionDate,
-      });
-
-      resetForm();
-      resetUpdateForm();
-      setOpen(false);
-    }
-  };
 
   const resetForm = () => {
     setMarket("crypto");
@@ -425,13 +366,6 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
     }
   };
 
-  const resetUpdateForm = () => {
-    setSelectedAssetId("");
-    setUpdateValue("");
-    setUpdateDate(new Date().toISOString().split("T")[0]);
-    setUpdateNotes("");
-    setSelectedAssetMarket("");
-  };
 
   const formatCurrency = (val: string) => {
     const num = val.replace(/[^\d]/g, "");
@@ -451,8 +385,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
       if (refreshIntervalId) clearInterval(refreshIntervalId);
       setRefreshIntervalId(null);
       resetForm();
-      resetUpdateForm();
-      setActiveTab(initialEditAssetId ? "update" : "new");
+      setActiveTab("new");
     }
   };
 
@@ -471,12 +404,6 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, i
             Cadastre um novo investimento ou atualize o valor de um ativo existente.
           </DialogDescription>
         </DialogHeader>
-
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "new" | "update")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="new" data-testid="tab-new-investment">Novo Investimento</TabsTrigger>
-            <TabsTrigger value="update" data-testid="tab-update-value">Atualizar Valor</TabsTrigger>
-          </TabsList>
 
           <TabsContent value="new">
             <form onSubmit={handleSubmit}>
