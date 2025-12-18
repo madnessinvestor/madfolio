@@ -304,8 +304,8 @@ async function updateWalletBalance(wallet: WalletConfig): Promise<void> {
 
 async function scheduleWalletUpdates(): Promise<void> {
   WALLETS.forEach((wallet, index) => {
-    // Increased interval: 15 seconds between wallets for better performance
-    const delayMs = index * 15 * 1000;
+    // 5 second interval between each wallet to avoid simultaneous requests
+    const delayMs = index * 5 * 1000;
     
     console.log(`[Step.finance] Scheduling ${wallet.name} to update in ${delayMs / 1000} seconds`);
     
@@ -318,7 +318,7 @@ async function scheduleWalletUpdates(): Promise<void> {
 }
 
 export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
-  console.log('[Step.finance] Force refresh requested with wait');
+  console.log('[Step.finance] Force refresh requested with wait - initial 15 second wait before starting');
   
   // Clear any pending timeouts
   walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
@@ -335,10 +335,15 @@ export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
     });
   }
   
-  // Start updates with 15 second intervals between each wallet
+  // Start with 15 second initial wait for proper site loading
+  const initialWaitMs = 15 * 1000;
+  console.log(`[Step.finance] Waiting ${initialWaitMs / 1000} seconds before starting wallet updates`);
+  
+  // Start updates with 5 second intervals between each wallet (after initial 15s wait)
   const updatePromises = WALLETS.map((wallet, index) => {
     return new Promise<void>((resolve) => {
-      const delayMs = index * 15 * 1000; // 15 seconds between each wallet
+      // Initial 15s wait + (index * 5s interval between wallets)
+      const delayMs = initialWaitMs + (index * 5 * 1000);
       
       setTimeout(async () => {
         await updateWalletBalance(wallet);
@@ -347,9 +352,9 @@ export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
     });
   });
   
-  // Calculate total wait time: (number_of_wallets - 1) * 15 seconds + initial wait of 15 seconds
-  const totalWaitMs = Math.max(15 * 1000, WALLETS.length * 15 * 1000);
-  console.log(`[Step.finance] Waiting ${totalWaitMs / 1000} seconds for all updates to complete`);
+  // Calculate total wait time: 15s initial + (number_of_wallets - 1) * 5 seconds
+  const totalWaitMs = initialWaitMs + Math.max(0, (WALLETS.length - 1) * 5 * 1000);
+  console.log(`[Step.finance] Total wait time: ${totalWaitMs / 1000} seconds (15s initial + ${(WALLETS.length - 1) * 5}s for intervals)`);
   
   // Wait for all updates to complete
   await Promise.all(updatePromises);
