@@ -200,33 +200,61 @@ async function scrapeJupiterPortfolioNetWorth(
     // Wait for JS to render
     await new Promise(resolve => setTimeout(resolve, 3000));
     
-    console.log('[JupiterPortfolio] Extracting all monetary values using opportunistic strategy');
+    console.log('[JupiterPortfolio] Extracting monetary values with semantic filtering');
     
-    // Extract ALL monetary values and find the largest
-    const rawValues = await page.evaluate(() => {
+    // Extract monetary values with context for semantic filtering
+    const filteredValues = await page.evaluate(() => {
       const fullText = document.body.innerText;
+      
+      // Keywords to ignore (case insensitive)
+      const blacklistKeywords = ['pnl', 'holdings', 'claimable'];
       
       // Match both European format ($1.911,36) and US format ($1,911.36)
       const regex = /\$[\d.,]+/g;
-      const matches = fullText.match(regex);
+      let match;
+      const valueContexts = [];
       
-      if (!matches || matches.length === 0) {
-        console.log('[JupiterPortfolio] No dollar values found');
+      while ((match = regex.exec(fullText)) !== null) {
+        const valueString = match[0];
+        const matchIndex = match.index;
+        
+        // Get context around the value (100 chars before and after)
+        const contextStart = Math.max(0, matchIndex - 100);
+        const contextEnd = Math.min(fullText.length, matchIndex + valueString.length + 100);
+        const context = fullText.substring(contextStart, contextEnd).toLowerCase();
+        
+        // Check if context contains blacklisted keywords
+        const hasBlacklistKeyword = blacklistKeywords.some(keyword => context.includes(keyword));
+        
+        // Check if value has negative sign nearby
+        const hasNegativeSign = context.includes('-');
+        
+        // Only include if no blacklist keywords and no negative sign
+        if (!hasBlacklistKeyword && !hasNegativeSign) {
+          valueContexts.push({
+            value: valueString,
+            context: context
+          });
+        }
+      }
+      
+      if (valueContexts.length === 0) {
+        console.log('[JupiterPortfolio] No values passed semantic filter');
         return null;
       }
       
-      console.log('[JupiterPortfolio] Found ' + matches.length + ' monetary values');
-      return matches;
+      console.log('[JupiterPortfolio] Found ' + valueContexts.length + ' values after semantic filtering');
+      return valueContexts.map(vc => vc.value);
     });
     
-    if (rawValues && rawValues.length > 0) {
-      console.log('[JupiterPortfolio] Raw values found: ' + rawValues.join(', '));
+    if (filteredValues && filteredValues.length > 0) {
+      console.log('[JupiterPortfolio] Filtered values: ' + filteredValues.join(', '));
       
       // Normalize and find the largest value
       let maxValue = 0;
       let maxFormattedValue = '';
       
-      for (const rawValue of rawValues) {
+      for (const rawValue of filteredValues) {
         // Normalize format
         const normalizedValue = normalizeJupiterValue(rawValue);
         const numericValue = parseFloat(normalizedValue);
@@ -242,7 +270,7 @@ async function scrapeJupiterPortfolioNetWorth(
       
       if (maxValue > 0 && maxFormattedValue !== '') {
         const finalValue = '$' + maxFormattedValue;
-        console.log('[JupiterPortfolio] VALIDATION PASSED - Largest value found: ' + finalValue);
+        console.log('[JupiterPortfolio] VALIDATION PASSED - Largest valid value found: ' + finalValue);
         return { value: finalValue, success: true, platform: 'jupiter' };
       }
     }
