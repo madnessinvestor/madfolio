@@ -628,7 +628,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="stock-date">Data da Cotação *</Label>
+                  <Label htmlFor="stock-date">Data de Investimento *</Label>
                   <Input
                     id="stock-date"
                     type="date"
@@ -639,7 +639,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
                 </div>
 
                 <p className="text-sm text-muted-foreground">
-                  Registre o valor atual do portfólio em renda variável com a data da cotação.
+                  Registre o valor aplicado no portfólio em renda variável com a data do investimento.
                 </p>
               </>
             ) : (
