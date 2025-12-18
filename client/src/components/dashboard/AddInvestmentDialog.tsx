@@ -23,7 +23,7 @@ import { Plus, Loader2, RefreshCw, CheckCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 export type AssetCategory = "crypto" | "stocks" | "fixed_income" | "cash" | "fii" | "etf" | "real_estate" | "others";
-export type MarketType = "crypto" | "fixed_income" | "variable_income" | "variable_income_simplified";
+export type MarketType = "crypto" | "crypto_simplified" | "fixed_income" | "variable_income" | "variable_income_simplified";
 
 export interface Investment {
   id: string;
@@ -65,6 +65,7 @@ const categoryLabels: Record<AssetCategory, string> = {
 
 const marketLabels: Record<MarketType, string> = {
   crypto: "Mercado Cripto",
+  crypto_simplified: "Mercado Cripto (Simplificado)",
   fixed_income: "Renda Fixa",
   variable_income: "Renda Variável",
   variable_income_simplified: "Renda Variável (Simplificada)",
@@ -72,6 +73,7 @@ const marketLabels: Record<MarketType, string> = {
 
 const categoriesByMarket: Record<MarketType, AssetCategory[]> = {
   crypto: ["crypto"],
+  crypto_simplified: ["crypto"],
   fixed_income: ["fixed_income", "cash", "others"],
   variable_income: ["stocks", "fii", "etf", "others"],
   variable_income_simplified: ["stocks", "others"],
@@ -110,6 +112,9 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [priceError, setPriceError] = useState(false);
   const [investmentType, setInvestmentType] = useState("renda_fixa");
   const [variableIncomeType, setVariableIncomeType] = useState("bolsa_valores");
+  const [walletName, setWalletName] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [network, setNetwork] = useState("");
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -136,7 +141,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   }, [initialEditAssetId, existingAssets]);
 
   const fetchCurrentPrice = useCallback(async (symbolToFetch: string, marketType: MarketType) => {
-    if (marketType === "fixed_income") {
+    if (marketType === "fixed_income" || marketType === "crypto_simplified") {
       setCurrentPrice(null);
       setPriceError(false);
       return;
@@ -195,21 +200,29 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Para renda fixa ou renda variável simplificada, validação simplificada
-    if (market === "fixed_income" || market === "variable_income_simplified") {
+    // Para cripto simplificado, renda fixa ou renda variável simplificada, validação simplificada
+    if (market === "crypto_simplified" || market === "fixed_income" || market === "variable_income_simplified") {
       if (!name || !acquisitionPrice) return;
       const priceString = acquisitionPrice.replace(/[^\d.,]/g, "");
       const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
       if (isNaN(parsedPrice)) return;
 
-      const marketType = market === "fixed_income" ? "fixed_income" : "variable_income";
-      const categoryType = market === "fixed_income" ? "fixed_income" : "stocks";
+      let marketType: MarketType = "crypto";
+      let categoryType: AssetCategory = "crypto";
+
+      if (market === "fixed_income") {
+        marketType = "fixed_income";
+        categoryType = "fixed_income";
+      } else if (market === "variable_income_simplified") {
+        marketType = "variable_income";
+        categoryType = "stocks";
+      }
 
       onAdd({
         name,
-        symbol: name.substring(0, 10),
-        category: categoryType as AssetCategory,
-        market: marketType as MarketType,
+        symbol: market === "crypto_simplified" ? (walletAddress.substring(0, 10) || name.substring(0, 10)) : name.substring(0, 10),
+        category: categoryType,
+        market: marketType,
         quantity: 1,
         acquisitionPrice: parsedPrice,
         acquisitionDate: new Date().toISOString().split("T")[0],
@@ -271,6 +284,9 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setPriceError(false);
     setInvestmentType("renda_fixa");
     setVariableIncomeType("bolsa_valores");
+    setWalletName("");
+    setWalletAddress("");
+    setNetwork("");
   };
 
   const resetUpdateForm = () => {
@@ -342,7 +358,57 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                   </Select>
                 </div>
 
-                {market === "fixed_income" ? (
+                {market === "crypto_simplified" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-name">Nome da Carteira</Label>
+                      <Input
+                        id="wallet-name"
+                        placeholder="Ex: Carteira Principal, Coinbase, etc"
+                        value={walletName}
+                        onChange={(e) => setWalletName(e.target.value)}
+                        data-testid="input-wallet-name"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-address">Wallet</Label>
+                      <Input
+                        id="wallet-address"
+                        placeholder="Ex: 1A1z7agoat42gCkHYQTNexhYixjwQF5ugN"
+                        value={walletAddress}
+                        onChange={(e) => setWalletAddress(e.target.value)}
+                        data-testid="input-wallet-address"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="network">Rede</Label>
+                      <Input
+                        id="network"
+                        placeholder="Ex: Bitcoin, Ethereum, Polygon, etc"
+                        value={network}
+                        onChange={(e) => setNetwork(e.target.value)}
+                        data-testid="input-network"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="total-value">Valor Total</Label>
+                      <Input
+                        id="total-value"
+                        placeholder="R$ 0,00"
+                        value={acquisitionPrice}
+                        onChange={(e) => setAcquisitionPrice(formatCurrency(e.target.value))}
+                        data-testid="input-crypto-total-value"
+                      />
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      Os valores são armazenados em Reais (BRL).
+                    </p>
+                  </>
+                ) : market === "fixed_income" ? (
                   <>
                     <div className="grid gap-2">
                       <Label htmlFor="bank">Banco/Instituição Financeira</Label>
