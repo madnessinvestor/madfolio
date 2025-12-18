@@ -152,6 +152,86 @@ export async function scrapeDebankEVM(
 }
 
 // ============================================================================
+// JUPITER PORTFOLIO SCRAPER (jup.ag/portfolio - Net Worth Specific)
+// ============================================================================
+
+async function scrapeJupiterPortfolioNetWorth(
+  browser: Browser,
+  walletLink: string,
+  timeoutMs: number = 30000
+): Promise<ScraperResult> {
+  const page = await browser.newPage();
+  const timeoutId = setTimeout(() => {
+    page.close().catch(() => {});
+  }, timeoutMs);
+  
+  try {
+    console.log('[JupiterPortfolio] Starting Net Worth scraper');
+    
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    // Navigate and wait for initial load
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 25000 }).catch(e => 
+      console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
+    );
+    
+    console.log('[JupiterPortfolio] Waiting for "Net Worth" text to appear in DOM');
+    
+    // Wait explicitly for "Net Worth" text to appear in the DOM
+    try {
+      await page.waitForFunction(() => {
+        return document.body.innerText.includes('Net Worth');
+      }, { timeout: 20000 });
+      console.log('[JupiterPortfolio] "Net Worth" text found in DOM');
+    } catch (waitError) {
+      console.log('[JupiterPortfolio] Timeout waiting for "Net Worth": ' + (waitError instanceof Error ? waitError.message : 'Unknown'));
+      return { value: null, success: false, platform: 'jupiter', error: 'Net Worth text not found after 20s' };
+    }
+    
+    // Extract ONLY the Net Worth value
+    const value = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      // Find the line with "Net Worth"
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes('Net Worth')) {
+          console.log('[JupiterPortfolio] Found Net Worth line: ' + lines[i]);
+          
+          // Check the next few lines for the dollar value
+          for (let j = i; j < Math.min(i + 5, lines.length); j++) {
+            const line = lines[j];
+            // Look for pattern like $X,XXX.XX or $X,XXX
+            const match = line.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
+            if (match) {
+              const value = '$' + match[1];
+              console.log('[JupiterPortfolio] Extracted Net Worth value: ' + value);
+              return value;
+            }
+          }
+        }
+      }
+      
+      return null;
+    });
+    
+    if (value) {
+      return { value, success: true, platform: 'jupiter' };
+    }
+    
+    console.log('[JupiterPortfolio] Could not extract Net Worth value from DOM');
+    return { value: null, success: false, platform: 'jupiter', error: 'Net Worth value not found in DOM' };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[JupiterPortfolio] Error:', msg);
+    return { value: null, success: false, platform: 'jupiter', error: msg };
+  } finally {
+    clearTimeout(timeoutId);
+    await page.close().catch(() => {});
+  }
+}
+
+// ============================================================================
 // SOLANA / JUPITER SCRAPER (Opportunistic - Largest Value Strategy)
 // ============================================================================
 
@@ -492,6 +572,14 @@ export async function selectAndScrapePlatform(
     }
     
     // ==================== RECOGNIZED PLATFORMS (with specific timeouts)
+    // SPECIAL CASE: jup.ag/portfolio - Use Net Worth specific scraper
+    if (walletLink.includes('jup.ag/portfolio')) {
+      if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
+      console.log('[Platform] Jupiter Portfolio detected - using Net Worth specific scraper');
+      return await scrapeJupiterPortfolioNetWorth(browser, walletLink, 30000);
+    }
+    
+    // Generic Jupiter scraper for other jup.ag links
     if (walletLink.includes('jup.ag')) {
       if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
       return await scrapeJupiterSolana(browser, walletLink, 45000);
