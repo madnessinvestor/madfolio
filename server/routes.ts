@@ -25,7 +25,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   startPriceUpdater(5 * 60 * 1000);
-  startDeBankMonitor(15 * 60 * 1000);
+  startDeBankMonitor(60 * 60 * 1000); // 1 hour with 10 second spacing between wallets
 
   app.get("/api/assets", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;

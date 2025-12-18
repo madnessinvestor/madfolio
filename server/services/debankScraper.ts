@@ -26,6 +26,7 @@ const WALLETS: WalletConfig[] = [
 const balanceCache = new Map<string, WalletBalance>();
 let isUpdating = false;
 let refreshInterval: NodeJS.Timeout | null = null;
+let walletUpdateTimeouts: Map<string, NodeJS.Timeout> = new Map();
 
 async function getChromiumPath(): Promise<string> {
   try {
@@ -122,21 +123,12 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
   }
 }
 
-async function updateAllBalances(): Promise<void> {
-  if (isUpdating) {
-    console.log('[DeBank] Update already in progress, skipping...');
-    return;
-  }
-
-  isUpdating = true;
+async function updateWalletBalance(wallet: WalletConfig): Promise<void> {
   let browser: Browser | null = null;
 
   try {
-    console.log('[DeBank] Starting balance update for all wallets...');
-    
     const chromiumPath = await getChromiumPath();
-    console.log('[DeBank] Using Chromium at:', chromiumPath);
-
+    
     browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -152,23 +144,31 @@ async function updateAllBalances(): Promise<void> {
       executablePath: chromiumPath,
     });
 
-    for (const wallet of WALLETS) {
-      const balance = await scrapeWalletBalance(browser, wallet);
-      balanceCache.set(wallet.name, balance);
-      console.log(`[DeBank] Updated ${wallet.name}: ${balance.balance}`);
-      
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
-
-    console.log('[DeBank] All balances updated successfully');
+    const balance = await scrapeWalletBalance(browser, wallet);
+    balanceCache.set(wallet.name, balance);
+    console.log(`[DeBank] Updated ${wallet.name}: ${balance.balance}`);
   } catch (error) {
-    console.error('[DeBank] Error during balance update:', error);
+    console.error(`[DeBank] Error updating ${wallet.name}:`, error);
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
     }
-    isUpdating = false;
   }
+}
+
+async function scheduleWalletUpdates(): Promise<void> {
+  // Schedule each wallet with 10 second intervals
+  WALLETS.forEach((wallet, index) => {
+    const delayMs = index * 10 * 1000; // 10 seconds between each wallet
+    
+    console.log(`[DeBank] Scheduling ${wallet.name} to update in ${delayMs / 1000} seconds`);
+    
+    const timeout = setTimeout(async () => {
+      await updateWalletBalance(wallet);
+    }, delayMs);
+    
+    walletUpdateTimeouts.set(wallet.name, timeout);
+  });
 }
 
 export function getBalances(): Record<string, string> {
@@ -194,8 +194,9 @@ export function getDetailedBalances(): WalletBalance[] {
   });
 }
 
-export function startDeBankMonitor(intervalMs: number = 15 * 60 * 1000): void {
-  console.log(`[DeBank] Starting monitor with ${intervalMs / 1000 / 60} minute interval`);
+export function startDeBankMonitor(intervalMs: number = 60 * 60 * 1000): void {
+  const intervalMinutes = intervalMs / 1000 / 60;
+  console.log(`[DeBank] Starting monitor with ${intervalMinutes} minute interval and 10 second spacing between wallets`);
 
   for (const wallet of WALLETS) {
     balanceCache.set(wallet.name, {
@@ -206,16 +207,23 @@ export function startDeBankMonitor(intervalMs: number = 15 * 60 * 1000): void {
     });
   }
 
+  // Initial schedule after 5 seconds
   setTimeout(() => {
-    updateAllBalances();
+    scheduleWalletUpdates();
   }, 5000);
 
   if (refreshInterval) {
     clearInterval(refreshInterval);
   }
 
+  // Schedule recurring updates every intervalMs (1 hour by default)
   refreshInterval = setInterval(() => {
-    updateAllBalances();
+    // Clear any existing timeouts
+    walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
+    walletUpdateTimeouts.clear();
+    
+    // Schedule new batch of updates
+    scheduleWalletUpdates();
   }, intervalMs);
 }
 
@@ -223,10 +231,19 @@ export function stopDeBankMonitor(): void {
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
-    console.log('[DeBank] Monitor stopped');
   }
+  
+  walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
+  walletUpdateTimeouts.clear();
+  
+  console.log('[DeBank] Monitor stopped');
 }
 
 export async function forceRefresh(): Promise<void> {
-  await updateAllBalances();
+  // Clear any existing timeouts
+  walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
+  walletUpdateTimeouts.clear();
+  
+  // Schedule immediate staggered updates
+  await scheduleWalletUpdates();
 }
