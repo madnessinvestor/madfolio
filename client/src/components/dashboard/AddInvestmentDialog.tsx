@@ -23,7 +23,7 @@ import { Plus, Loader2, RefreshCw, CheckCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 export type AssetCategory = "crypto" | "stocks" | "fixed_income" | "cash" | "fii" | "etf" | "real_estate" | "others";
-export type MarketType = "crypto" | "fixed_income" | "variable_income";
+export type MarketType = "crypto" | "fixed_income" | "variable_income" | "variable_income_simplified";
 
 export interface Investment {
   id: string;
@@ -67,12 +67,14 @@ const marketLabels: Record<MarketType, string> = {
   crypto: "Mercado Cripto",
   fixed_income: "Renda Fixa",
   variable_income: "Renda Variável",
+  variable_income_simplified: "Renda Variável (Simplificada)",
 };
 
 const categoriesByMarket: Record<MarketType, AssetCategory[]> = {
   crypto: ["crypto"],
   fixed_income: ["fixed_income", "cash", "others"],
   variable_income: ["stocks", "fii", "etf", "others"],
+  variable_income_simplified: ["stocks", "others"],
 };
 
 const investmentTypeLabels: Record<string, string> = {
@@ -81,6 +83,7 @@ const investmentTypeLabels: Record<string, string> = {
   caixinha: "Caixinha",
   poupanca: "Poupança",
   outros: "Outros",
+  bolsa_valores: "Bolsa de Valores",
 };
 
 interface ExistingAsset {
@@ -106,6 +109,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [investmentType, setInvestmentType] = useState("renda_fixa");
+  const [variableIncomeType, setVariableIncomeType] = useState("bolsa_valores");
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -191,18 +195,21 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Para renda fixa, validação simplificada
-    if (market === "fixed_income") {
+    // Para renda fixa ou renda variável simplificada, validação simplificada
+    if (market === "fixed_income" || market === "variable_income_simplified") {
       if (!name || !acquisitionPrice) return;
       const priceString = acquisitionPrice.replace(/[^\d.,]/g, "");
       const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
       if (isNaN(parsedPrice)) return;
 
+      const marketType = market === "fixed_income" ? "fixed_income" : "variable_income";
+      const categoryType = market === "fixed_income" ? "fixed_income" : "stocks";
+
       onAdd({
         name,
         symbol: name.substring(0, 10),
-        category: "fixed_income",
-        market,
+        category: categoryType as AssetCategory,
+        market: marketType as MarketType,
         quantity: 1,
         acquisitionPrice: parsedPrice,
         acquisitionDate: new Date().toISOString().split("T")[0],
@@ -263,6 +270,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setCurrentPrice(null);
     setPriceError(false);
     setInvestmentType("renda_fixa");
+    setVariableIncomeType("bolsa_valores");
   };
 
   const resetUpdateForm = () => {
@@ -354,7 +362,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.entries(investmentTypeLabels).map(([value, label]) => (
+                          {Object.entries(investmentTypeLabels).filter(([key]) => key !== "bolsa_valores").map(([value, label]) => (
                             <SelectItem key={value} value={value}>
                               {label}
                             </SelectItem>
@@ -371,6 +379,46 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                         value={acquisitionPrice}
                         onChange={(e) => setAcquisitionPrice(formatCurrency(e.target.value))}
                         data-testid="input-fixed-income-value"
+                      />
+                    </div>
+
+                    <p className="text-sm text-muted-foreground">
+                      Os valores são armazenados em Reais (BRL).
+                    </p>
+                  </>
+                ) : market === "variable_income_simplified" ? (
+                  <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="bank-variable">Banco/Instituição Financeira</Label>
+                      <Input
+                        id="bank-variable"
+                        placeholder="Ex: Nubank, Banco do Brasil, etc"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        data-testid="input-bank-name-variable"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="investmentTypeVariable">Tipo de Investimento</Label>
+                      <Select value={variableIncomeType} onValueChange={setVariableIncomeType} disabled>
+                        <SelectTrigger data-testid="select-investment-type-variable">
+                          <SelectValue placeholder="Bolsa de Valores" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bolsa_valores">Bolsa de Valores</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="value-variable">Valor Aportado</Label>
+                      <Input
+                        id="value-variable"
+                        placeholder="R$ 0,00"
+                        value={acquisitionPrice}
+                        onChange={(e) => setAcquisitionPrice(formatCurrency(e.target.value))}
+                        data-testid="input-variable-income-value"
                       />
                     </div>
 
