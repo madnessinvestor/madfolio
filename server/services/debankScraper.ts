@@ -71,63 +71,35 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
         const pageText = document.body.innerText;
         const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         
-        console.log('[Debank] Analyzing ' + lines.length + ' lines of text');
-        
-        // Strategy 1: Look for the portfolio total - usually appears early on the page with decimals
-        // The main portfolio value typically has format: $X,XXX.XX or $XX.XX
-        const portfolioValues: Array<{value: number, text: string, index: number}> = [];
-        
-        for (let i = 0; i < Math.min(lines.length, 50); i++) { // Check first 50 lines (top of page)
+        // Strategy: Look for the pattern "$X -Y%" or "$X +Y%" which appears in the top-right
+        // This is the total portfolio value displayed prominently with the price change
+        // Search only in the first 30 lines (top of page where the value is displayed)
+        for (let i = 0; i < Math.min(lines.length, 30); i++) {
           const line = lines[i];
           
-          // Skip lines with % (percentage changes)
-          if (line.includes('%')) continue;
-          
-          // Skip lines that are clearly labels or text
-          if (line.toLowerCase().includes('portfolio') || 
-              line.toLowerCase().includes('total value') ||
-              line.toLowerCase().includes('net worth') ||
-              line.toLowerCase().includes('change') ||
-              line.toLowerCase().includes('followers') ||
-              line.toLowerCase().includes('earnings')) continue;
-          
-          // Look for $ followed by number with decimal points (usually the real total)
-          const match = line.match(/^\$\s*([\d,]+\.\d{2})/);
+          // Look for pattern: $X,XXX -Y.YY% or $X +Y.YY% (the top-right value with percentage change)
+          const match = line.match(/^\$\s*([\d,]+(?:\.\d{2})?)\s+[-+][\d.]+%/);
           if (match) {
-            const numValue = parseFloat(match[1].replace(/,/g, ''));
-            if (numValue > 0 && numValue < 10000000) {
-              console.log('[Debank] Found portfolio value at line ' + i + ': ' + match[1]);
-              portfolioValues.push({ value: numValue, text: match[1], index: i });
-            }
+            const value = match[1];
+            console.log('[Debank] Found top-right portfolio value: ' + value);
+            return value;
           }
         }
         
-        // Return the first one found (earliest on page = most prominent = portfolio total)
-        if (portfolioValues.length > 0) {
-          portfolioValues.sort((a, b) => a.index - b.index);
-          console.log('[Debank] Selected first portfolio value: ' + portfolioValues[0].text);
-          return portfolioValues[0].text;
-        }
-        
-        // Strategy 2: Fallback - look for any $ value starting a line (priority to larger values)
-        const anyValues: Array<{value: number, text: string}> = [];
-        
-        for (const line of lines) {
+        // Fallback: If pattern not found, look for first $ value on a line by itself
+        for (let i = 0; i < Math.min(lines.length, 50); i++) {
+          const line = lines[i];
           if (line.startsWith('$')) {
             const match = line.match(/^\$\s*([\d,]+\.?\d*)/);
             if (match) {
-              const numValue = parseFloat(match[1].replace(/,/g, ''));
+              const value = match[1];
+              const numValue = parseFloat(value.replace(/,/g, ''));
               if (numValue > 0 && numValue < 10000000) {
-                anyValues.push({ value: numValue, text: match[1] });
+                console.log('[Debank] Fallback - found value: ' + value);
+                return value;
               }
             }
           }
-        }
-        
-        if (anyValues.length > 0) {
-          anyValues.sort((a, b) => b.value - a.value);
-          console.log('[Debank] Fallback - selected largest value: ' + anyValues[0].text);
-          return anyValues[0].text;
         }
         
         return null;
