@@ -3,6 +3,7 @@ import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTabl
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
+import { EditInvestmentDialog } from "@/components/dashboard/EditInvestmentDialog";
 import { Bitcoin, TrendingUp, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -48,6 +49,7 @@ export default function CryptoPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; symbol: string } | null>(null);
   const [editingAssetId, setEditingAssetId] = useState<string | undefined>(undefined);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
@@ -136,6 +138,7 @@ export default function CryptoPage() {
 
   const handleEdit = (holding: Holding) => {
     setEditingAssetId(holding.id);
+    setEditDialogOpen(true);
   };
 
   const handleDelete = (holding: Holding) => {
@@ -246,6 +249,17 @@ export default function CryptoPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {editingAssetId && (
+        <EditInvestmentDialog
+          assetId={editingAssetId}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setEditingAssetId(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

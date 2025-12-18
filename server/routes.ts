@@ -213,6 +213,47 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/investments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const asset = await storage.getAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      const { name, symbol, quantity, acquisitionPrice, acquisitionDate, currentPrice } = req.body;
+
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (symbol !== undefined) updates.symbol = symbol.toUpperCase();
+      if (quantity !== undefined) updates.quantity = quantity;
+      if (acquisitionPrice !== undefined) updates.acquisitionPrice = acquisitionPrice;
+      if (acquisitionDate !== undefined) updates.acquisitionDate = acquisitionDate;
+      if (currentPrice !== undefined) {
+        updates.currentPrice = currentPrice;
+        updates.lastPriceUpdate = new Date();
+      }
+
+      const updatedAsset = await storage.updateAsset(req.params.id, updates);
+      
+      if (currentPrice !== undefined && currentPrice !== asset.currentPrice) {
+        const totalValue = (quantity || asset.quantity || 1) * currentPrice;
+        await storage.createSnapshot({
+          assetId: req.params.id,
+          value: totalValue,
+          amount: quantity || asset.quantity || 1,
+          unitPrice: currentPrice,
+          date: new Date().toISOString().split('T')[0],
+          notes: "Atualização manual"
+        });
+      }
+
+      res.json(updatedAsset);
+    } catch (error) {
+      console.error("Error updating investment:", error);
+      res.status(500).json({ error: "Failed to update investment" });
+    }
+  });
+
   app.get("/api/snapshots/latest", isAuthenticated, async (req: any, res) => {
     try {
       const snapshots = await storage.getLatestSnapshots();
