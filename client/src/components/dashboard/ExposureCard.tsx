@@ -1,18 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Bitcoin, Landmark, Building2 } from "lucide-react";
+import { Bitcoin, Landmark, BarChart3, Building2 } from "lucide-react";
 
 interface ExposureCardProps {
   cryptoValue: number;
-  traditionalValue: number;
+  fixedIncomeValue: number;
+  variableIncomeValue: number;
   realEstateValue?: number;
   formatCurrency?: (value: number) => string;
 }
 
-export function ExposureCard({ cryptoValue, traditionalValue, realEstateValue = 0, formatCurrency: customFormat }: ExposureCardProps) {
-  const total = cryptoValue + traditionalValue + realEstateValue;
+export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValue, realEstateValue = 0, formatCurrency: customFormat }: ExposureCardProps) {
+  const total = cryptoValue + fixedIncomeValue + variableIncomeValue + realEstateValue;
   const cryptoPercent = total > 0 ? (cryptoValue / total) * 100 : 0;
-  const traditionalPercent = total > 0 ? (traditionalValue / total) * 100 : 0;
+  const fixedIncomePercent = total > 0 ? (fixedIncomeValue / total) * 100 : 0;
+  const variableIncomePercent = total > 0 ? (variableIncomeValue / total) * 100 : 0;
   const realEstatePercent = total > 0 ? (realEstateValue / total) * 100 : 0;
 
   const formatDefault = (value: number) =>
@@ -53,24 +55,44 @@ export function ExposureCard({ cryptoValue, traditionalValue, realEstateValue = 
                 <Landmark className="h-4 w-4 text-chart-2" />
               </div>
               <div>
-                <p className="font-medium text-sm">Mercado Tradicional</p>
+                <p className="font-medium text-sm">Renda Fixa</p>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {format(traditionalValue)}
+                  {format(fixedIncomeValue)}
                 </p>
               </div>
             </div>
             <span className="text-lg font-bold tabular-nums">
-              {traditionalPercent.toFixed(1)}%
+              {fixedIncomePercent.toFixed(1)}%
             </span>
           </div>
-          <Progress value={traditionalPercent} className="h-2" />
+          <Progress value={fixedIncomePercent} className="h-2" />
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-chart-3/10">
-                <Building2 className="h-4 w-4 text-chart-3" />
+                <BarChart3 className="h-4 w-4 text-chart-3" />
+              </div>
+              <div>
+                <p className="font-medium text-sm">Renda Variável</p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {format(variableIncomeValue)}
+                </p>
+              </div>
+            </div>
+            <span className="text-lg font-bold tabular-nums">
+              {variableIncomePercent.toFixed(1)}%
+            </span>
+          </div>
+          <Progress value={variableIncomePercent} className="h-2" />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-chart-4/10">
+                <Building2 className="h-4 w-4 text-chart-4" />
               </div>
               <div>
                 <p className="font-medium text-sm">Imóveis</p>

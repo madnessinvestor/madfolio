@@ -2,7 +2,7 @@ import { useState } from "react";
 import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CategoryChart } from "@/components/dashboard/CategoryChart";
-import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
+import { AddFixedIncomeDialog, type FixedIncomeInvestment } from "@/components/dashboard/AddFixedIncomeDialog";
 import { Landmark, TrendingUp, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -55,8 +55,17 @@ export default function FixedIncomePage() {
   });
 
   const createInvestmentMutation = useMutation({
-    mutationFn: async (investment: Omit<Investment, "id" | "currentPrice">) => {
-      return apiRequest("POST", "/api/investments", { ...investment, currency: "BRL" });
+    mutationFn: async (investment: FixedIncomeInvestment) => {
+      return apiRequest("POST", "/api/investments", { 
+        name: investment.name,
+        symbol: investment.name.substring(0, 10),
+        category: "fixed_income",
+        market: "fixed_income",
+        quantity: 1,
+        acquisitionPrice: investment.value,
+        acquisitionDate: new Date().toISOString().split("T")[0],
+        currency: "BRL"
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
@@ -103,34 +112,8 @@ export default function FixedIncomePage() {
     type: "stock",
   }));
 
-  const createSnapshotMutation = useMutation({
-    mutationFn: async (snapshot: Snapshot) => {
-      return apiRequest("POST", "/api/snapshots", snapshot);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
-      toast({
-        title: "Valor atualizado",
-        description: "O valor do ativo foi atualizado com sucesso.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o valor.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
+  const handleAddInvestment = (investment: FixedIncomeInvestment) => {
     createInvestmentMutation.mutate(investment);
-  };
-
-  const handleAddSnapshot = (snapshot: Snapshot) => {
-    createSnapshotMutation.mutate(snapshot);
   };
 
   const handleEdit = (holding: Holding) => {
@@ -178,22 +161,27 @@ export default function FixedIncomePage() {
           <p className="text-muted-foreground">Investimentos com rendimento fixo e previsível</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AddInvestmentDialog onAdd={handleAddInvestment} onAddSnapshot={handleAddSnapshot} isLoading={createInvestmentMutation.isPending || createSnapshotMutation.isPending} />
+          <AddFixedIncomeDialog onAdd={handleAddInvestment} isLoading={createInvestmentMutation.isPending} />
         </div>
       </div>
 
       {summaryLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {[...Array(2)].map((_, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-32 rounded-lg" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <MetricCard
             title="Valor Total"
             value={format(totalValue)}
             icon={Landmark}
+          />
+          <MetricCard
+            title="Exposição Renda Fixa"
+            value={`${((fixedIncomeHoldings.length > 0 ? (totalValue / (summary?.totalValue || 1)) : 0) * 100).toFixed(1)}%`}
+            icon={TrendingUp}
           />
           <MetricCard
             title="Ativos"

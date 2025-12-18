@@ -188,7 +188,7 @@ export default function CryptoPage() {
           />
           <MetricCard
             title="Exposição Cripto"
-            value={`${(summary?.cryptoExposure || 0).toFixed(1)}%`}
+            value={`${((totalValue / (summary?.totalValue || 1)) * 100).toFixed(1)}%`}
             icon={TrendingUp}
           />
           <MetricCard
