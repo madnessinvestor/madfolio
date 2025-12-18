@@ -32,6 +32,7 @@ export default function WalletTracker() {
   const [newWalletLink, setNewWalletLink] = useState("");
   const [isAddingWallet, setIsAddingWallet] = useState(false);
   const [selectedWalletForHistory, setSelectedWalletForHistory] = useState<string | null>(null);
+  const [updatingWallets, setUpdatingWallets] = useState<Set<string>>(new Set());
 
   const { data: balances, isLoading, error } = useQuery<WalletBalance[]>({
     queryKey: ["/api/saldo/detailed"],
@@ -120,8 +121,17 @@ export default function WalletTracker() {
 
   const refreshWalletMutation = useMutation({
     mutationFn: async (walletName: string) => {
-      const response = await apiRequest("POST", `/api/saldo/refresh/${encodeURIComponent(walletName)}`, {});
-      return response.json();
+      setUpdatingWallets(prev => new Set([...prev, walletName]));
+      try {
+        const response = await apiRequest("POST", `/api/saldo/refresh/${encodeURIComponent(walletName)}`, {});
+        return response.json();
+      } finally {
+        setUpdatingWallets(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(walletName);
+          return newSet;
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
@@ -240,11 +250,11 @@ export default function WalletTracker() {
                       size="icon"
                       variant="ghost"
                       onClick={() => refreshWalletMutation.mutate(wallet.name)}
-                      disabled={refreshWalletMutation.isPending}
+                      disabled={updatingWallets.has(wallet.name)}
                       data-testid={`button-refresh-wallet-${wallet.id}`}
                       title="Atualizar esta wallet"
                     >
-                      {refreshWalletMutation.isPending ? (
+                      {updatingWallets.has(wallet.name) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <RefreshCw className="h-4 w-4" />
