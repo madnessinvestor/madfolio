@@ -10,6 +10,7 @@ import { fetchWalletBalance } from "./services/walletBalance";
 import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets, forceRefreshWallet } from "./services/debankScraper";
 import { getWalletHistory, getAllHistory, getLatestByWallet, getWalletStats } from "./services/walletCache";
 import { insertWalletSchema } from "@shared/schema";
+import { fetchJupPortfolio } from "./services/jupAgScraper";
 
 const investmentSchema = z.object({
   name: z.string().min(1),
@@ -362,6 +363,33 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching DeBankAPI balance:", error);
       res.status(500).json({ error: "Failed to fetch DeBankAPI balance" });
+    }
+  });
+
+  app.get("/api/jup-portfolio", async (req, res) => {
+    try {
+      const portfolioId = req.query.address as string;
+      if (!portfolioId) {
+        return res.status(400).json({ error: "address parameter (portfolio ID) is required" });
+      }
+
+      const portfolio = await fetchJupPortfolio(portfolioId);
+      if (!portfolio) {
+        return res.status(404).json({ error: "Failed to fetch Jup.Ag portfolio" });
+      }
+
+      const rates = await fetchExchangeRates();
+      const exchangeRate = rates.USD || 5.51;
+      const balanceBRL = portfolio.netWorthUSD * exchangeRate;
+
+      res.json({
+        portfolioId,
+        netWorthUSD: portfolio.netWorthUSD,
+        netWorthBRL: balanceBRL,
+      });
+    } catch (error) {
+      console.error("Error fetching Jup.Ag portfolio:", error);
+      res.status(500).json({ error: "Failed to fetch Jup.Ag portfolio" });
     }
   });
 
