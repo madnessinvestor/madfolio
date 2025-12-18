@@ -127,7 +127,7 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
   return null;
 }
 
-// Extract Net Worth for Jup.Ag - Extract ALL numeric values and get largest (handles both formats: 2.008,95 and 2,008.95)
+// Extract Net Worth for Jup.Ag
 async function extractJupAgNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
   console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Jup.Ag Net Worth for ${walletName}`);
   
@@ -135,61 +135,84 @@ async function extractJupAgNetWorth(page: any, walletName: string, attempt: numb
     const result = await page.evaluate(() => {
       const pageText = document.body.innerText;
       
-      // Extract ALL numeric values with dots and/or commas (supports: 2.008,95 or 2,008.95 or 528,66)
-      const matches = pageText.match(/\d+(?:[.,]\d+)*/g) || [];
+      // Strategy 1: Find "Net Worth" and get text after it until first number
+      const netWorthIndex = pageText.toLowerCase().indexOf('net worth');
+      if (netWorthIndex !== -1) {
+        const afterNetWorth = pageText.substring(netWorthIndex, netWorthIndex + 200);
+        const currencyMatch = afterNetWorth.match(/[\$€]\s*[\d.,]+/);
+        if (currencyMatch) {
+          const value = currencyMatch[0].replace(/[\$€\s]/g, '');
+          return { source: 'net_worth_label', value };
+        }
+      }
+      
+      // Strategy 2: Extract ALL currency formatted numbers ($X,XXX.XX or $X.XXX,XX)
+      const currencyMatches = pageText.match(/[\$€][\s]*[\d.]+(?:[,][\d]+)?/g) || [];
       const allValues: Array<{ str: string; num: number }> = [];
       
-      for (const match of matches) {
+      for (const match of currencyMatches) {
+        const value = match.replace(/[\$€\s]/g, '');
         let numValue: number;
-        const value = match;
         
-        // Parse European (2.008,95) vs American (2,008.95) vs other
         if (value.includes('.') && value.includes(',')) {
           const lastDot = value.lastIndexOf('.');
           const lastComma = value.lastIndexOf(',');
-          if (lastComma > lastDot) {
-            // European: 2.008,95 (ponto=milhar, vírgula=decimal)
-            numValue = parseFloat(value.replace(/\./g, '').replace(',', '.'));
-          } else {
-            // American: 2,008.95 (vírgula=milhar, ponto=decimal)
-            numValue = parseFloat(value.replace(/,/g, ''));
-          }
+          numValue = lastComma > lastDot 
+            ? parseFloat(value.replace(/\./g, '').replace(',', '.'))
+            : parseFloat(value.replace(/,/g, ''));
         } else if (value.includes(',')) {
-          // Only comma - 528,66 (European decimal)
           numValue = parseFloat(value.replace(',', '.'));
         } else if (value.includes('.')) {
-          // Only dot - could be thousand or decimal
           const parts = value.split('.');
-          if (parts[parts.length - 1].length <= 2 && parts[0].length > 2) {
-            // Thousand separator: 2.008
-            numValue = parseFloat(value.replace(/\./g, ''));
-          } else {
-            numValue = parseFloat(value);
-          }
+          numValue = parts[parts.length - 1].length <= 2 && parts[0].length > 2
+            ? parseFloat(value.replace(/\./g, ''))
+            : parseFloat(value);
         } else {
           numValue = parseFloat(value);
         }
         
-        if (!isNaN(numValue)) {
+        if (!isNaN(numValue) && numValue > 0) {
           allValues.push({ str: value, num: numValue });
         }
       }
       
-      // Sort by numeric value descending
       allValues.sort((a, b) => b.num - a.num);
-      
-      return { allValues };
+      return { source: 'currency_match', allValues };
     });
 
+    // Try net worth label result first
+    if (result.source === 'net_worth_label' && result.value) {
+      let numValue: number;
+      const value = result.value;
+      if (value.includes('.') && value.includes(',')) {
+        const lastComma = value.lastIndexOf(',');
+        const lastDot = value.lastIndexOf('.');
+        numValue = lastComma > lastDot 
+          ? parseFloat(value.replace(/\./g, '').replace(',', '.'))
+          : parseFloat(value.replace(/,/g, ''));
+      } else if (value.includes(',')) {
+        numValue = parseFloat(value.replace(',', '.'));
+      } else {
+        numValue = parseFloat(value.replace(/\./g, ''));
+      }
+      
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Found via Net Worth label: $${result.value} = ${numValue}`);
+      return `$${result.value}`;
+    }
+    
+    // Fallback to largest currency value found
     if (result.allValues && result.allValues.length > 0) {
-      // Find first value between 100 and 100 million
+      console.log(`[Jup.Ag Debug] Currency values found:`, result.allValues.slice(0, 10).map((v: any) => `${v.str}=${v.num}`).join(', '));
+      
       for (const item of result.allValues) {
-        if (item.num > 100 && item.num < 100000000) {
+        if (item.num >= 100 && item.num < 100000000) {
           console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag Net Worth: $${item.str} (${item.num})`);
           return `$${item.str}`;
         }
       }
     }
+    
+    console.log(`[Jup.Ag Debug] No valid value found`);
   } catch (error) {
     console.log(`[Step.finance] [Attempt ${attempt}/3] Jup.Ag extraction error: ${error}`);
   }
