@@ -55,6 +55,7 @@ export interface Snapshot {
 interface AddInvestmentDialogProps {
   onAdd: (investment: Omit<Investment, "id" | "currentPrice">) => void;
   onAddSnapshot?: (snapshot: Snapshot) => void;
+  onEdit?: (id: string, investment: Omit<Investment, "id" | "currentPrice">) => void;
   isLoading?: boolean;
   initialEditAssetId?: string;
   existingAssets?: ExistingAsset[];
@@ -104,7 +105,7 @@ interface ExistingAsset {
   category?: string;
 }
 
-export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEditAssetId, existingAssets: providedAssets }: AddInvestmentDialogProps) {
+export function AddInvestmentDialog({ onAdd, onAddSnapshot, onEdit, isLoading, initialEditAssetId, existingAssets: providedAssets }: AddInvestmentDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"new" | "update">(initialEditAssetId ? "update" : "new");
   
@@ -296,22 +297,47 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
 
   const handleUpdateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAssetId || !updateValue || !updateDate || !onAddSnapshot) return;
+    if (!selectedAssetId) return;
 
-    const valueString = updateValue.replace(/[^\d.,]/g, "");
-    const parsedValue = parseFloat(valueString.replace(/\./g, "").replace(",", "."));
+    // If using snapshot mode (legacy) - just add snapshot
+    if (updateValue && updateDate && onAddSnapshot && !onEdit) {
+      const valueString = updateValue.replace(/[^\d.,]/g, "");
+      const parsedValue = parseFloat(valueString.replace(/\./g, "").replace(",", "."));
 
-    if (isNaN(parsedValue)) return;
+      if (isNaN(parsedValue)) return;
 
-    onAddSnapshot({
-      assetId: selectedAssetId,
-      value: parsedValue,
-      date: updateDate,
-      notes: updateNotes || undefined,
-    });
+      onAddSnapshot({
+        assetId: selectedAssetId,
+        value: parsedValue,
+        date: updateDate,
+        notes: updateNotes || undefined,
+      });
 
-    resetUpdateForm();
-    setOpen(false);
+      resetUpdateForm();
+      setOpen(false);
+      return;
+    }
+
+    // Edit mode - update full investment details
+    if (onEdit && name && acquisitionPrice && market) {
+      const priceString = acquisitionPrice.replace(/[^\d.,]/g, "");
+      const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
+      if (isNaN(parsedPrice)) return;
+
+      onEdit(selectedAssetId, {
+        name,
+        symbol: symbol || name.substring(0, 10),
+        category,
+        market,
+        quantity: parseFloat(quantity) || 1,
+        acquisitionPrice: parsedPrice,
+        acquisitionDate,
+      });
+
+      resetForm();
+      resetUpdateForm();
+      setOpen(false);
+    }
   };
 
   const resetForm = () => {
@@ -786,6 +812,13 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                     const asset = existingAssets.find(a => a.id === value);
                     if (asset) {
                       setSelectedAssetMarket((asset.market as MarketType) || "");
+                      // Pre-fill edit form with asset data if onEdit is available
+                      if (onEdit) {
+                        setName(asset.name);
+                        setSymbol(asset.symbol);
+                        setMarket((asset.market as MarketType) || "crypto");
+                        setCategory((asset.category as AssetCategory) || "crypto");
+                      }
                     }
                   }}>
                     <SelectTrigger data-testid="select-asset">
@@ -809,7 +842,72 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
 
                 {selectedAssetMarket && (
                   <>
-                    {selectedAssetMarket === "crypto" || selectedAssetMarket === "crypto_simplified" ? (
+                    {onEdit ? (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-4 font-semibold">Editando: {name}</p>
+                        
+                        <div className="grid gap-2">
+                          <Label htmlFor="edit-name">Nome do Ativo</Label>
+                          <Input
+                            id="edit-name"
+                            placeholder="Ex: Minha Carteira Cripto"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            data-testid="input-edit-name"
+                          />
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="edit-symbol">Símbolo</Label>
+                          <Input
+                            id="edit-symbol"
+                            placeholder="Ex: CRIPTO"
+                            value={symbol}
+                            onChange={(e) => setSymbol(e.target.value)}
+                            data-testid="input-edit-symbol"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="edit-quantity">Quantidade</Label>
+                            <Input
+                              id="edit-quantity"
+                              type="text"
+                              placeholder="1"
+                              value={quantity}
+                              onChange={(e) => setQuantity(e.target.value)}
+                              data-testid="input-edit-quantity"
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="edit-price">Preço de Aquisição</Label>
+                            <Input
+                              id="edit-price"
+                              placeholder="R$ 0,00"
+                              value={acquisitionPrice}
+                              onChange={(e) => setAcquisitionPrice(formatCurrency(e.target.value))}
+                              data-testid="input-edit-price"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="edit-date">Data de Aquisição</Label>
+                          <Input
+                            id="edit-date"
+                            type="date"
+                            value={acquisitionDate}
+                            onChange={(e) => setAcquisitionDate(e.target.value)}
+                            data-testid="input-edit-date"
+                          />
+                        </div>
+
+                        <p className="text-sm text-muted-foreground">
+                          Edite os dados completos do investimento.
+                        </p>
+                      </>
+                    ) : selectedAssetMarket === "crypto" || selectedAssetMarket === "crypto_simplified" ? (
                       <>
                         <div className="grid gap-2">
                           <Label htmlFor="updateValue">Valor Total (Reais)</Label>
@@ -981,7 +1079,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                 </Button>
                 <Button 
                   type="submit" 
-                  disabled={isLoading || existingAssets.length === 0 || !onAddSnapshot} 
+                  disabled={isLoading || existingAssets.length === 0 || (!onAddSnapshot && !onEdit)} 
                   data-testid="button-submit-update"
                 >
                   {isLoading ? (
