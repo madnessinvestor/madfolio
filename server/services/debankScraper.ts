@@ -122,7 +122,7 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
   return null;
 }
 
-// Extract Net Worth for Jup.Ag - looks for the Net Worth section
+// Extract Net Worth for Jup.Ag - looks for the Net Worth section and avoids Holdings PnL
 async function extractJupAgNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
   console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Jup.Ag Net Worth for ${walletName}`);
   
@@ -132,19 +132,33 @@ async function extractJupAgNetWorth(page: any, walletName: string, attempt: numb
         const pageText = document.body.innerText;
         const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         
-        // Look for "Net Worth" label and get the value after it
+        // Look for "Net Worth" label and get the value that comes with it (avoiding Holdings PnL)
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].toLowerCase().includes('net worth')) {
-            // Check next few lines for the value
-            for (let j = i; j < Math.min(i + 3, lines.length); j++) {
+          const currentLine = lines[i].toLowerCase();
+          
+          // Check if this line contains "Net Worth" label
+          if (currentLine.includes('net worth') && !currentLine.includes('holdings')) {
+            // Look in current and next line for the USD value
+            let value = null;
+            
+            // First, try to extract from the same line or next line
+            for (let j = i; j < Math.min(i + 2, lines.length); j++) {
               const line = lines[j];
-              const match = line.match(/\$?\s*([\d,]+(?:\.\d{2})?)/);
-              if (match && !line.toLowerCase().includes('pnl')) {
-                const value = match[1];
-                const numValue = parseFloat(value.replace(/,/g, ''));
+              // Skip lines that mention "Holdings" or "PnL" to avoid getting wrong column
+              if (line.toLowerCase().includes('holdings') || line.toLowerCase().includes('pnl')) {
+                continue;
+              }
+              
+              // Match pattern like "$2.031,91" or "$2,031.91" or similar variations
+              const match = line.match(/\$\s*([\d,.]+)/);
+              if (match) {
+                const rawValue = match[1];
+                // Normalize the value - handle both "." and "," as separators
+                const numValue = parseFloat(rawValue.replace(/[,]/g, '.').replace(/[.]/g, ',').replace(/[,]/g, '.'));
                 if (numValue > 0 && numValue < 100000000) {
-                  console.log('[Jup.Ag] Found Net Worth: ' + value);
-                  return value;
+                  value = rawValue;
+                  console.log('[Jup.Ag] Found Net Worth value: $' + rawValue);
+                  return rawValue;
                 }
               }
             }
