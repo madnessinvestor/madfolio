@@ -15,6 +15,8 @@ interface WalletBalance {
   balance: string;
   lastUpdated: string;
   error?: string;
+  status?: 'success' | 'temporary_error' | 'unavailable';
+  lastKnownValue?: string;
 }
 
 export default function WalletTracker() {
@@ -98,6 +100,27 @@ export default function WalletTracker() {
     },
   });
 
+  const refreshWalletMutation = useMutation({
+    mutationFn: async (walletName: string) => {
+      const response = await apiRequest("POST", `/api/saldo/refresh/${encodeURIComponent(walletName)}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
+      toast({
+        title: "Sucesso",
+        description: "Wallet atualizada.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar wallet.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("pt-BR", {
@@ -113,6 +136,16 @@ export default function WalletTracker() {
     if (link.includes("step.finance")) return "Solana";
     if (link.includes("debank.com")) return "DeBank";
     return "Link";
+  };
+
+  const getStatusDisplay = (wallet: WalletBalance) => {
+    if (wallet.status === 'success') {
+      return { label: 'Atualizado', variant: 'outline' as const };
+    } else if (wallet.status === 'temporary_error') {
+      return { label: 'Valor anterior', variant: 'secondary' as const };
+    } else {
+      return { label: 'Indisponível', variant: 'destructive' as const };
+    }
   };
 
   if (isLoading) {
@@ -175,19 +208,35 @@ export default function WalletTracker() {
                   <ExternalLink className="h-4 w-4" />
                 </a>
                 {wallet.id && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => deleteWalletMutation.mutate(wallet.id!)}
-                    disabled={deleteWalletMutation.isPending}
-                    data-testid={`button-delete-wallet-${wallet.id}`}
-                  >
-                    {deleteWalletMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    )}
-                  </Button>
+                  <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => refreshWalletMutation.mutate(wallet.name)}
+                      disabled={refreshWalletMutation.isPending}
+                      data-testid={`button-refresh-wallet-${wallet.id}`}
+                      title="Atualizar esta wallet"
+                    >
+                      {refreshWalletMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteWalletMutation.mutate(wallet.id!)}
+                      disabled={deleteWalletMutation.isPending}
+                      data-testid={`button-delete-wallet-${wallet.id}`}
+                    >
+                      {deleteWalletMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </CardHeader>
@@ -199,17 +248,22 @@ export default function WalletTracker() {
                 <span className="text-xs text-muted-foreground">
                   {getPlatformName(wallet.link)}
                 </span>
-                {wallet.error ? (
-                  <Badge variant="destructive" className="text-xs">Erro</Badge>
-                ) : wallet.balance === "Loading..." ? (
+                {wallet.balance === "Loading..." || wallet.balance === "Carregando..." ? (
                   <Badge variant="secondary" className="text-xs">Carregando</Badge>
                 ) : (
-                  <Badge variant="outline" className="text-xs">Atualizado</Badge>
+                  <Badge variant={getStatusDisplay(wallet).variant} className="text-xs">
+                    {getStatusDisplay(wallet).label}
+                  </Badge>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Ultima atualizacao: {formatDate(wallet.lastUpdated)}
+                Última atualização: {formatDate(wallet.lastUpdated)}
               </p>
+              {wallet.error && (
+                <p className="text-xs text-destructive mt-1">
+                  {wallet.error}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}

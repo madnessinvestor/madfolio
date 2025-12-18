@@ -7,7 +7,7 @@ import { isAuthenticated } from "./replit_integrations/auth";
 import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services/pricing";
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
 import { fetchWalletBalance } from "./services/walletBalance";
-import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets } from "./services/debankScraper";
+import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets, forceRefreshWallet } from "./services/debankScraper";
 import { insertWalletSchema } from "@shared/schema";
 
 const investmentSchema = z.object({
@@ -486,12 +486,25 @@ export async function registerRoutes(
 
   app.post("/api/saldo/refresh", async (req, res) => {
     try {
-      // Use forceRefreshAndWait to get updated balances after waiting for all wallets to be scraped
-      // With 15 second intervals between each wallet request
       const updatedBalances = await forceRefreshAndWait();
       res.json({ message: "Balances refreshed", balances: updatedBalances });
     } catch (error) {
       res.status(500).json({ error: "Failed to refresh DeBank balances" });
+    }
+  });
+
+  app.post("/api/saldo/refresh/:walletName", async (req, res) => {
+    try {
+      const walletName = decodeURIComponent(req.params.walletName);
+      const updatedBalance = await forceRefreshWallet(walletName);
+      
+      if (!updatedBalance) {
+        return res.status(404).json({ error: "Wallet not found" });
+      }
+      
+      res.json({ message: "Wallet refreshed", balance: updatedBalance });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to refresh wallet balance" });
     }
   });
 

@@ -17,6 +17,8 @@ interface WalletBalance {
   balance: string;
   lastUpdated: Date;
   error?: string;
+  status: 'success' | 'temporary_error' | 'unavailable'; // 'success': valor válido atual; 'temporary_error': falha mas tem cache; 'unavailable': nunca teve valor
+  lastKnownValue?: string; // Último valor válido para fallback
 }
 
 let WALLETS: WalletConfig[] = [];
@@ -40,8 +42,6 @@ async function getChromiumPath(): Promise<string> {
 }
 
 async function extractAddressFromLink(link: string): Promise<string | null> {
-  // Extract Ethereum address from DeBank URL: https://debank.com/profile/0x...
-  // Or Solana address from Step.finance URL
   const ethMatch = link.match(/0x[a-fA-F0-9]{40}/);
   if (ethMatch) return ethMatch[0];
   
@@ -51,141 +51,90 @@ async function extractAddressFromLink(link: string): Promise<string | null> {
   return null;
 }
 
-// Function to wait for value stabilization
-async function waitForValueStabilization(
-  page: any,
-  selector: string,
-  maxWaitMs: number = 60000
-): Promise<string | null> {
-  const startTime = Date.now();
-  let previousValue: string | null = null;
-  let stabilityCount = 0;
-  const requiredStabilityChecks = 3; // 5 seconds without change = stable
+// DeBank selectors - múltiplos fallbacks para encontrar Net Worth
+const debankSelectors = [
+  '[class*="NetWorth"]',
+  '[class*="networth"]',
+  'div:has-text("Net Worth")',
+  '[data-testid*="net-worth"]',
+  '[title*="Net Worth"]'
+];
 
-  while (Date.now() - startTime < maxWaitMs) {
-    try {
-      const currentValue = await page.evaluate((sel: string) => {
-        const element = document.querySelector(sel);
-        return element?.textContent?.trim() || null;
-      }, selector);
-
-      if (currentValue === previousValue && currentValue !== null) {
-        stabilityCount++;
-        console.log(`[Step.finance] Stability check ${stabilityCount}/${requiredStabilityChecks}: value ${currentValue}`);
-        
-        if (stabilityCount >= requiredStabilityChecks) {
-          console.log(`[Step.finance] Value stabilized: ${currentValue}`);
-          return currentValue;
-        }
-      } else {
-        stabilityCount = 0;
-        previousValue = currentValue;
-        console.log(`[Step.finance] Value changed to: ${currentValue}`);
-      }
-
-      // Wait 5 seconds before checking again
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    } catch (error) {
-      console.log(`[Step.finance] Error during stabilization check: ${error}`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  }
-
-  return previousValue;
-}
-
-// Extract net worth specifically for DeBank (EVM)
-async function extractDebankNetWorth(page: any): Promise<string | null> {
-  console.log('[Step.finance] Attempting to extract DeBank Net Worth');
+// Extract net worth for DeBank with multiple fallback selectors
+async function extractDebankNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
+  console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting DeBank Net Worth for ${walletName}`);
   
-  try {
-    // Try to find the Net Worth value on DeBank
-    const netWorth = await page.evaluate(() => {
-      // Look for text containing "Net Worth" or similar patterns
-      const elements = Array.from(document.querySelectorAll('*'));
-      
-      for (const el of elements) {
-        const text = el.textContent || '';
-        
-        // Look for "Net Worth" label and get the value
-        if (text.toLowerCase().includes('net worth') || text.toLowerCase().includes('patrimônio')) {
-          const parent = el.closest('[class*="flex"], [class*="grid"], [class*="stack"]');
-          if (parent) {
-            const allText = (parent as HTMLElement).textContent || '';
-            // Extract currency value ($ followed by numbers and commas/dots)
-            const match = allText.match(/\$\s*([\d,]+\.?\d*)/);
-            if (match) return match[1];
-          }
-        }
-      }
-      
-      // Alternative: look for large numbers in the page
-      const pageText = document.body.innerText;
-      const lines = pageText.split('\n').map(l => l.trim()).filter(l => l);
-      
-      for (const line of lines) {
-        if (/net\s+worth|patrimônio\s+líquido/i.test(line)) {
-          // Look in next few lines for a number
-          const idx = lines.indexOf(line);
-          for (let i = idx + 1; i < Math.min(idx + 5, lines.length); i++) {
-            const match = lines[i].match(/\$?\s*([\d,]+\.?\d*)/);
-            if (match && !/%/.test(lines[i])) {
-              return match[1];
+  for (let i = 0; i < debankSelectors.length; i++) {
+    const selector = debankSelectors[i];
+    console.log(`[Step.finance] [Attempt ${attempt}/3] Trying selector ${i + 1}/${debankSelectors.length}: ${selector}`);
+    
+    try {
+      const netWorth = await page.evaluate((sel: string) => {
+        try {
+          // Try multiple approaches to find the value
+          const elements = Array.from(document.querySelectorAll('*'));
+          
+          for (const el of elements) {
+            const text = el.textContent || '';
+            if (text.toLowerCase().includes('net worth') || text.toLowerCase().includes('patrimônio')) {
+              const parent = el.closest('[class*="flex"], [class*="grid"], [class*="container"]') as HTMLElement;
+              if (parent) {
+                const allText = parent.textContent || '';
+                const match = allText.match(/\$?\s*([\d,]+\.?\d*(?:[KMB])?)/);
+                if (match && !/%/.test(allText)) {
+                  return match[1];
+                }
+              }
             }
           }
+          
+          // Fallback: search all text for Net Worth pattern
+          const pageText = document.body.innerText;
+          const lines = pageText.split('\n').map(l => l.trim()).filter(l => l);
+          
+          for (let j = 0; j < lines.length; j++) {
+            if (/net\s+worth|patrimônio\s+líquido/i.test(lines[j])) {
+              for (let k = j + 1; k < Math.min(j + 5, lines.length); k++) {
+                const match = lines[k].match(/\$?\s*([\d,]+\.?\d*(?:[KMB])?)/);
+                if (match && !/%/.test(lines[k]) && !lines[k].toLowerCase().includes('change')) {
+                  return match[1];
+                }
+              }
+            }
+          }
+          
+          return null;
+        } catch {
+          return null;
         }
-      }
-      
-      return null;
-    });
+      }, selector);
 
-    if (netWorth) {
-      console.log(`[Step.finance] Extracted DeBank Net Worth: $${netWorth}`);
-      return `$${netWorth}`;
+      if (netWorth) {
+        console.log(`[Step.finance] [Attempt ${attempt}/3] Found value with selector ${i + 1}: $${netWorth}`);
+        return `$${netWorth}`;
+      }
+    } catch (error) {
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Selector ${i + 1} error: ${error}`);
     }
-  } catch (error) {
-    console.log(`[Step.finance] Error extracting DeBank Net Worth: ${error}`);
   }
   
   return null;
 }
 
-// Extract portfolio value specifically for Step.Finance (Solana)
-async function extractStepFinancePortfolioValue(page: any): Promise<string | null> {
-  console.log('[Step.finance] Attempting to extract Step.Finance Portfolio Value');
+// Extract portfolio value for Step.Finance
+async function extractStepFinancePortfolioValue(page: any, walletName: string, attempt: number): Promise<string | null> {
+  console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Step.Finance Portfolio Value for ${walletName}`);
   
   try {
-    // Try to find the Portfolio Value
     const portfolioValue = await page.evaluate(() => {
-      const elements = Array.from(document.querySelectorAll('*'));
-      
-      // Look for portfolio/patrimônio value
-      for (const el of elements) {
-        const text = el.textContent || '';
-        
-        if (text.toLowerCase().includes('portfolio') || 
-            text.toLowerCase().includes('patrimônio') ||
-            text.toLowerCase().includes('total value')) {
-          const parent = el.closest('[class*="flex"], [class*="grid"], [class*="stack"], [class*="card"]');
-          if (parent) {
-            const allText = (parent as HTMLElement).textContent || '';
-            // Extract currency value
-            const match = allText.match(/\$?\s*([\d,]+\.?\d*)/);
-            if (match) return match[1];
-          }
-        }
-      }
-      
-      // Alternative: search page text
       const pageText = document.body.innerText;
       const lines = pageText.split('\n').map(l => l.trim()).filter(l => l);
       
-      for (const line of lines) {
-        if (/portfolio|patrimônio|total\s+value/i.test(line)) {
-          const idx = lines.indexOf(line);
-          for (let i = idx + 1; i < Math.min(idx + 5, lines.length); i++) {
-            const match = lines[i].match(/\$?\s*([\d,]+\.?\d*)/);
-            if (match && !/%/.test(lines[i])) {
+      for (let i = 0; i < lines.length; i++) {
+        if (/portfolio|patrimônio|total\s+value/i.test(lines[i])) {
+          for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+            const match = lines[j].match(/\$?\s*([\d,]+\.?\d*(?:[KMB])?)/);
+            if (match && !/%/.test(lines[j]) && !lines[j].toLowerCase().includes('change')) {
               return match[1];
             }
           }
@@ -196,162 +145,197 @@ async function extractStepFinancePortfolioValue(page: any): Promise<string | nul
     });
 
     if (portfolioValue) {
-      console.log(`[Step.finance] Extracted Step.Finance Portfolio Value: $${portfolioValue}`);
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Found portfolio value: $${portfolioValue}`);
       return `$${portfolioValue}`;
     }
   } catch (error) {
-    console.log(`[Step.finance] Error extracting Step.Finance Portfolio Value: ${error}`);
+    console.log(`[Step.finance] [Attempt ${attempt}/3] Error extracting portfolio value: ${error}`);
   }
   
   return null;
 }
 
-async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Promise<WalletBalance> {
-  const page = await browser.newPage();
+// Generic fallback extraction
+async function extractGenericValue(page: any, walletName: string, attempt: number): Promise<string | null> {
+  console.log(`[Step.finance] [Attempt ${attempt}/3] Using generic extraction for ${walletName}`);
   
   try {
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
-    console.log(`[Step.finance] Fetching balance for ${wallet.name} from ${wallet.link}`);
-    
-    // Try API approach first if it's a DeBank link
-    if (wallet.link.includes('debank.com')) {
-      const address = await extractAddressFromLink(wallet.link);
-      if (address) {
-        console.log(`[Step.finance] Extracted address from DeBank URL: ${address}`);
-        try {
-          const apiUrl = `https://api.debank.com/v1/user/total_balance?id=${address}`;
-          console.log(`[Step.finance] Calling DeBank API: ${apiUrl}`);
-          
-          const response = await fetch(apiUrl, {
-            headers: { "Accept": "application/json" }
-          });
-
-          console.log(`[Step.finance] API response status: ${response.status}`);
-
-          if (response.ok) {
-            const data = await response.json() as any;
-            const balanceUSD = data.total_usd_value || 0;
-            const formatted = `$${balanceUSD.toFixed(2)}`;
-            console.log(`[Step.finance] Found API balance for ${wallet.name}: ${formatted}`);
-            return {
-              id: wallet.id,
-              name: wallet.name,
-              link: wallet.link,
-              balance: formatted,
-              lastUpdated: new Date(),
-            };
-          } else {
-            console.log(`[Step.finance] API returned status ${response.status} for ${wallet.name}`);
-          }
-        } catch (apiError) {
-          console.log(`[Step.finance] API call failed for ${wallet.name}: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`);
-        }
-      }
-    }
-
-    // Fallback to browser scraping
-    console.log(`[Step.finance] Starting web scraping for ${wallet.name}`);
-    
-    // MANDATORY: Initial delay of 15 seconds after page.goto
-    console.log(`[Step.finance] Loading page for ${wallet.name}...`);
-    await page.goto(wallet.link, { 
-      waitUntil: 'domcontentloaded',
-      timeout: 120000 
-    }).catch((err) => {
-      console.log(`[Step.finance] Page load warning for ${wallet.name}: ${err.message}`);
-    });
-
-    console.log(`[Step.finance] Mandatory 15-second wait for ${wallet.name} to fully load...`);
-    await new Promise(resolve => setTimeout(resolve, 15000));
-
-    let balance: string | null = null;
-
-    // For Step.Finance (Solana wallets)
-    if (wallet.link.includes('step.finance')) {
-      console.log(`[Step.finance] Detecting Step.Finance portfolio for ${wallet.name}`);
-      balance = await extractStepFinancePortfolioValue(page);
-    }
-    // For DeBank (EVM wallets)
-    else if (wallet.link.includes('debank.com')) {
-      console.log(`[Step.finance] Detecting DeBank Net Worth for ${wallet.name}`);
-      balance = await extractDebankNetWorth(page);
-    }
-
-    // If specific extraction didn't work, try generic extraction
-    if (!balance) {
-      console.log(`[Step.finance] Using generic extraction for ${wallet.name}`);
-      balance = await page.evaluate(() => {
-        const allText = document.body.innerText;
-        const lines = allText.split('\n').map(l => l.trim()).filter(l => l);
+    const value = await page.evaluate(() => {
+      const allText = document.body.innerText;
+      const lines = allText.split('\n').map(l => l.trim()).filter(l => l);
+      
+      for (const line of lines) {
+        if (/earnings|profit|loss|fee|gain|%|time|date|hour|minute|second|tx|transaction|volume|change/i.test(line)) continue;
+        if (line.length > 100) continue;
         
-        // Look for currency patterns
-        for (const line of lines) {
-          // Skip obvious non-balance lines
-          if (/earnings|profit|loss|fee|gain|%|time|date|hour|minute|second|tx|transaction|volume|change/i.test(line)) continue;
-          if (line.length > 100) continue; // Skip long lines
-          
-          // Look for currency amounts
-          const match = line.match(/\$?\s*([\d]{1,3}(?:[,][\d]{3})*(?:[.][\d]{2,})?)/);
-          if (match) {
-            const amount = match[1];
-            // Accept if it has comma separator or decimal
-            if (amount.includes(',') || amount.includes('.')) {
-              const numValue = parseFloat(amount.replace(/,/g, ''));
-              if (numValue > 10) { // Must be reasonable balance
-                return `$${amount}`;
-              }
+        const match = line.match(/\$?\s*([\d]{1,3}(?:[,][\d]{3})*(?:[.][\d]{2,})?(?:[KMB])?)/);
+        if (match) {
+          const amount = match[1];
+          if (amount.includes(',') || amount.includes('.')) {
+            const numValue = parseFloat(amount.replace(/,/g, ''));
+            if (numValue > 10) {
+              return `$${amount}`;
             }
           }
         }
-
-        return null;
-      });
-    }
-
-    // Clean up the balance
-    const cleanBalance = balance ? balance.trim() : null;
-    const isValidBalance = cleanBalance && cleanBalance !== ',' && cleanBalance !== '$' && cleanBalance.match(/[\d,]/);
-    
-    if (isValidBalance) {
-      console.log(`[Step.finance] Found balance for ${wallet.name}: ${cleanBalance}`);
-      await page.close();
+      }
       
-      return {
-        id: wallet.id,
-        name: wallet.name,
-        link: wallet.link,
-        balance: cleanBalance,
-        lastUpdated: new Date(),
-      };
-    } else {
-      console.log(`[Step.finance] No valid balance found for ${wallet.name}`);
-      await page.close();
-      
-      return {
-        id: wallet.id,
-        name: wallet.name,
-        link: wallet.link,
-        balance: 'Indisponível',
-        lastUpdated: new Date(),
-      };
+      return null;
+    });
+
+    if (value) {
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Found generic value: ${value}`);
+      return value;
     }
   } catch (error) {
-    console.error(`[Step.finance] Error fetching ${wallet.name}:`, error);
-    await page.close().catch(() => {});
+    console.log(`[Step.finance] [Attempt ${attempt}/3] Generic extraction error: ${error}`);
+  }
+  
+  return null;
+}
+
+async function scrapeWalletBalanceWithRetry(
+  browser: Browser,
+  wallet: WalletConfig,
+  maxRetries: number = 3
+): Promise<WalletBalance> {
+  let lastError: string | undefined;
+  let lastKnownValue: string | undefined;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const page = await browser.newPage();
     
+    try {
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Fetching balance for ${wallet.name}`);
+      
+      // Try API first for DeBank
+      if (wallet.link.includes('debank.com')) {
+        const address = await extractAddressFromLink(wallet.link);
+        if (address) {
+          try {
+            const apiUrl = `https://api.debank.com/v1/user/total_balance?id=${address}`;
+            console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Trying DeBank API`);
+            
+            const response = await fetch(apiUrl, {
+              headers: { "Accept": "application/json" }
+            });
+
+            if (response.ok) {
+              const data = await response.json() as any;
+              const balanceUSD = data.total_usd_value || 0;
+              const formatted = `$${balanceUSD.toFixed(2)}`;
+              console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Success via API: ${formatted}`);
+              
+              await page.close();
+              return {
+                id: wallet.id,
+                name: wallet.name,
+                link: wallet.link,
+                balance: formatted,
+                lastUpdated: new Date(),
+                status: 'success',
+                lastKnownValue: formatted
+              };
+            }
+          } catch (apiError) {
+            console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] API failed: ${apiError instanceof Error ? apiError.message : 'Unknown error'}`);
+          }
+        }
+      }
+
+      // Web scraping fallback
+      console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Starting web scraping`);
+      await page.goto(wallet.link, { 
+        waitUntil: 'domcontentloaded',
+        timeout: 120000 
+      }).catch((err) => {
+        console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Page load warning: ${err.message}`);
+      });
+
+      console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Mandatory 15-second wait`);
+      await new Promise(resolve => setTimeout(resolve, 15000));
+
+      let balance: string | null = null;
+
+      if (wallet.link.includes('step.finance')) {
+        balance = await extractStepFinancePortfolioValue(page, wallet.name, attempt);
+      } else if (wallet.link.includes('debank.com')) {
+        balance = await extractDebankNetWorth(page, wallet.name, attempt);
+      }
+
+      if (!balance) {
+        balance = await extractGenericValue(page, wallet.name, attempt);
+      }
+
+      await page.close();
+
+      const cleanBalance = balance ? balance.trim() : null;
+      const isValidBalance = cleanBalance && cleanBalance !== ',' && cleanBalance !== '$' && cleanBalance.match(/[\d,]/);
+
+      if (isValidBalance) {
+        console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Success: ${cleanBalance}`);
+        
+        const cachedEntry = balanceCache.get(wallet.name);
+        return {
+          id: wallet.id,
+          name: wallet.name,
+          link: wallet.link,
+          balance: cleanBalance,
+          lastUpdated: new Date(),
+          status: 'success',
+          lastKnownValue: cleanBalance
+        };
+      } else {
+        lastError = 'Valor numérico não encontrado';
+        if (attempt < maxRetries) {
+          console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] No value found, retrying in 10 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Error: ${lastError}`);
+      
+      if (attempt < maxRetries) {
+        console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Retrying in 10 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+
+  // All retries exhausted
+  const cachedEntry = balanceCache.get(wallet.name);
+  
+  if (cachedEntry?.lastKnownValue) {
+    console.log(`[Step.finance] All retries failed for ${wallet.name}, using cached value: ${cachedEntry.lastKnownValue}`);
     return {
       id: wallet.id,
       name: wallet.name,
       link: wallet.link,
-      balance: 'Erro ao carregar',
-      lastUpdated: new Date(),
-      error: error instanceof Error ? error.message : 'Unknown error',
+      balance: cachedEntry.lastKnownValue,
+      lastUpdated: cachedEntry.lastUpdated,
+      status: 'temporary_error',
+      lastKnownValue: cachedEntry.lastKnownValue,
+      error: `Atualização falhou (3 tentativas): ${lastError}`
     };
   }
+
+  console.log(`[Step.finance] No value ever found for ${wallet.name}`);
+  return {
+    id: wallet.id,
+    name: wallet.name,
+    link: wallet.link,
+    balance: 'Indisponível',
+    lastUpdated: new Date(),
+    status: 'unavailable',
+    error: lastError || 'Impossível conectar'
+  };
 }
 
-// MANDATORY: Sequential wallet processing with 5-second delay between each
 async function updateWalletBalanceSequential(wallets: WalletConfig[]): Promise<void> {
   let browser: Browser | null = null;
 
@@ -373,16 +357,14 @@ async function updateWalletBalanceSequential(wallets: WalletConfig[]): Promise<v
       executablePath: chromiumPath,
     });
 
-    // Process wallets sequentially (not in parallel)
     for (let i = 0; i < wallets.length; i++) {
       const wallet = wallets[i];
       console.log(`[Step.finance] Processing wallet ${i + 1}/${wallets.length}: ${wallet.name}`);
       
-      const balance = await scrapeWalletBalance(browser, wallet);
+      const balance = await scrapeWalletBalanceWithRetry(browser, wallet, 3);
       balanceCache.set(wallet.name, balance);
-      console.log(`[Step.finance] Updated ${wallet.name}: ${balance.balance}`);
+      console.log(`[Step.finance] Updated ${wallet.name}: ${balance.balance} (${balance.status})`);
 
-      // 5-second delay between wallets (except after the last one)
       if (i < wallets.length - 1) {
         console.log(`[Step.finance] Waiting 5 seconds before next wallet...`);
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -399,34 +381,75 @@ async function updateWalletBalanceSequential(wallets: WalletConfig[]): Promise<v
 
 async function scheduleWalletUpdates(): Promise<void> {
   console.log(`[Step.finance] Scheduling ${WALLETS.length} wallets for sequential update`);
-  
-  // Process all wallets sequentially
   await updateWalletBalanceSequential(WALLETS);
 }
 
 export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
   console.log('[Step.finance] Force refresh requested - starting sequential wallet updates');
   
-  // Clear any pending timeouts
   walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
   walletUpdateTimeouts.clear();
   
-  // Mark all wallets as loading
   for (const wallet of WALLETS) {
+    const cached = balanceCache.get(wallet.name);
     balanceCache.set(wallet.name, {
       id: wallet.id,
       name: wallet.name,
       link: wallet.link,
-      balance: 'Carregando...',
+      balance: cached?.balance || 'Carregando...',
       lastUpdated: new Date(),
+      status: 'success',
+      lastKnownValue: cached?.lastKnownValue
     });
   }
   
-  // Process wallets sequentially
   await updateWalletBalanceSequential(WALLETS);
-  
-  // Return updated balances
   return getDetailedBalances();
+}
+
+// Refresh individual wallet
+export async function forceRefreshWallet(walletName: string): Promise<WalletBalance | null> {
+  console.log(`[Step.finance] Force refresh for wallet: ${walletName}`);
+  
+  const wallet = WALLETS.find(w => w.name === walletName);
+  if (!wallet) {
+    console.log(`[Step.finance] Wallet not found: ${walletName}`);
+    return null;
+  }
+
+  let browser: Browser | null = null;
+
+  try {
+    const chromiumPath = await getChromiumPath();
+    
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ],
+      executablePath: chromiumPath,
+    });
+
+    const balance = await scrapeWalletBalanceWithRetry(browser, wallet, 3);
+    balanceCache.set(wallet.name, balance);
+    console.log(`[Step.finance] Updated ${wallet.name}: ${balance.balance} (${balance.status})`);
+    
+    return balance;
+  } catch (error) {
+    console.error(`[Step.finance] Error refreshing ${walletName}:`, error);
+    return null;
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
 }
 
 export function getBalances(): Record<string, string> {
@@ -449,6 +472,8 @@ export function getDetailedBalances(): WalletBalance[] {
       link: wallet.link,
       balance: cached?.balance || 'Loading...',
       lastUpdated: cached?.lastUpdated || new Date(),
+      status: cached?.status || 'unavailable',
+      lastKnownValue: cached?.lastKnownValue,
       error: cached?.error,
     };
   });
@@ -456,7 +481,7 @@ export function getDetailedBalances(): WalletBalance[] {
 
 export function startStepMonitor(intervalMs: number = 60 * 60 * 1000): void {
   const intervalMinutes = intervalMs / 1000 / 60;
-  console.log(`[Step.finance] Starting monitor with ${intervalMinutes} minute interval - wallets processed sequentially`);
+  console.log(`[Step.finance] Starting monitor with ${intervalMinutes} minute interval - wallets processed sequentially with retry logic`);
 
   for (const wallet of WALLETS) {
     balanceCache.set(wallet.name, {
@@ -465,10 +490,10 @@ export function startStepMonitor(intervalMs: number = 60 * 60 * 1000): void {
       link: wallet.link,
       balance: 'Loading...',
       lastUpdated: new Date(),
+      status: 'unavailable'
     });
   }
 
-  // First update after 5 seconds
   setTimeout(async () => {
     await scheduleWalletUpdates();
   }, 5000);
@@ -477,7 +502,6 @@ export function startStepMonitor(intervalMs: number = 60 * 60 * 1000): void {
     clearInterval(refreshInterval);
   }
 
-  // Recurring updates at specified interval
   refreshInterval = setInterval(async () => {
     walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
     walletUpdateTimeouts.clear();
