@@ -1,0 +1,75 @@
+Quero que você ajuste e corrija o scraping com Puppeteer do meu projeto para garantir que o valor de patrimônio final correto seja capturado, tanto no Debank (EVM) quanto no Step.Finance (Solana).
+
+Problema atual:
+
+O Puppeteer está lendo o valor cedo demais.
+
+O patrimônio nesses sites carrega progressivamente (o número vai aumentando até estabilizar).
+
+Isso faz com que o backend salve valores incompletos e errados.
+
+Correções obrigatórias a implementar:
+
+1️⃣ Delay inicial obrigatório
+
+Após cada page.goto, aguardar no mínimo 15 segundos antes de qualquer leitura do DOM.
+
+2️⃣ Espera por estabilização do valor (não por tempo fixo)
+
+Implementar uma função de leitura que:
+
+capture o valor atual do patrimônio
+
+aguarde alguns segundos
+
+capture novamente
+
+somente aceite o valor quando ele não mudar por pelo menos 5 segundos consecutivos
+
+Se o valor continuar mudando, continuar aguardando até estabilizar.
+
+Implementar um timeout máximo de 60 segundos para evitar loop infinito.
+
+3️⃣ Atualização sequencial das wallets
+
+As wallets não devem ser processadas em paralelo.
+
+Atualizar uma wallet por vez.
+
+Adicionar um delay fixo de 5 segundos entre cada wallet.
+
+4️⃣ Identificação correta do campo de patrimônio
+
+Debank (EVM): capturar exclusivamente o valor de Net Worth / Patrimônio Líquido exibido no topo da página, ignorando valores parciais intermediários.
+
+Step.Finance (Solana): capturar o valor de Total Portfolio Value / Patrimônio exibido no dashboard principal.
+
+5️⃣ Wallets que devem ser monitoradas
+
+EVM / Debank:
+
+EVM-madnessmain → https://debank.com/profile/0x083c828b221b126965a146658d4e512337182df1
+
+EVM-madnesstrezor → https://debank.com/profile/0xb5a4bccc07c1f25f43c0215627853e39b6bd3ac7
+
+EVM-madnesstwo → https://debank.com/profile/0x0b2812ecda6ed953ff85db3c594efe42dfbdb84a
+
+SOL / Step.Finance:
+
+SOL-madnessmain → https://app.step.finance/pt/portfolio?wallet=DyEWx33cWoBdGF1xmWckyhxEodzZUzuDcxR48S76Mswj
+
+SOL-madnesstwo → https://app.step.finance/pt/portfolio?wallet=AgB9wwGXpsXioXQ15vXXWYcDuz5NQbw6DTwDwjfVaQA6
+
+6️⃣ Execução em background
+
+Todo o processo deve rodar 100% no backend, usando Puppeteer em modo headless.
+
+Nenhuma janela ou site deve abrir visualmente para o usuário.
+
+7️⃣ Objetivo final
+
+O backend só deve salvar e retornar o valor quando o patrimônio estiver totalmente carregado e estável, exatamente igual ao que o usuário vê após alguns segundos no site.
+
+A precisão do valor é prioridade máxima, mesmo que o processo demore mais.
+
+Ajuste o código existente para seguir rigorosamente essas regras e garantir valores corretos e confiáveis para meu dashboard pessoal.
