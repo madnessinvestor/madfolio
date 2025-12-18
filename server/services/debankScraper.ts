@@ -127,7 +127,7 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
   return null;
 }
 
-// Extract Net Worth for Jup.Ag - Super simple: get LARGEST value that's > 1000
+// Extract Net Worth for Jup.Ag - Extract ALL numeric values and get largest (handles both formats: 2.008,95 and 2,008.95)
 async function extractJupAgNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
   console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Jup.Ag Net Worth for ${walletName}`);
   
@@ -135,55 +135,60 @@ async function extractJupAgNetWorth(page: any, walletName: string, attempt: numb
     const result = await page.evaluate(() => {
       const pageText = document.body.innerText;
       
-      // Debug: log first 500 chars of page text
-      const preview = pageText.substring(0, 500);
-      
-      // Find all dollar amounts in the page
-      const matches = pageText.match(/\$\s*([\d,.]+)/g);
-      
-      if (!matches) {
-        return { error: 'No dollar matches found', preview };
-      }
-      
-      let largestValue = null;
-      let largestNum = 0;
-      const allValues: string[] = [];
+      // Extract ALL numeric values with dots and/or commas (supports: 2.008,95 or 2,008.95 or 528,66)
+      const matches = pageText.match(/\d+(?:[.,]\d+)*/g) || [];
+      const allValues: Array<{ str: string; num: number }> = [];
       
       for (const match of matches) {
-        const value = match.replace('$', '').trim();
-        allValues.push(value);
         let numValue: number;
+        const value = match;
         
-        // Parse: handle "2.031,91" (European) or "2,031.91" (US)
+        // Parse European (2.008,95) vs American (2,008.95) vs other
         if (value.includes('.') && value.includes(',')) {
-          if (value.lastIndexOf(',') > value.lastIndexOf('.')) {
+          const lastDot = value.lastIndexOf('.');
+          const lastComma = value.lastIndexOf(',');
+          if (lastComma > lastDot) {
+            // European: 2.008,95 (ponto=milhar, vírgula=decimal)
             numValue = parseFloat(value.replace(/\./g, '').replace(',', '.'));
           } else {
+            // American: 2,008.95 (vírgula=milhar, ponto=decimal)
             numValue = parseFloat(value.replace(/,/g, ''));
           }
         } else if (value.includes(',')) {
+          // Only comma - 528,66 (European decimal)
           numValue = parseFloat(value.replace(',', '.'));
+        } else if (value.includes('.')) {
+          // Only dot - could be thousand or decimal
+          const parts = value.split('.');
+          if (parts[parts.length - 1].length <= 2 && parts[0].length > 2) {
+            // Thousand separator: 2.008
+            numValue = parseFloat(value.replace(/\./g, ''));
+          } else {
+            numValue = parseFloat(value);
+          }
         } else {
           numValue = parseFloat(value);
         }
         
-        // Keep track of the largest value > 1000 (Net Worth)
-        if (numValue > 1000 && numValue < 100000000 && numValue > largestNum) {
-          largestValue = value;
-          largestNum = numValue;
+        if (!isNaN(numValue)) {
+          allValues.push({ str: value, num: numValue });
         }
       }
       
-      return { largestValue, largestNum, allValues, preview };
+      // Sort by numeric value descending
+      allValues.sort((a, b) => b.num - a.num);
+      
+      return { allValues };
     });
 
-    console.log(`[Jup.Ag Debug] Page preview: ${result.preview?.substring(0, 200) || 'none'}`);
-    console.log(`[Jup.Ag Debug] All dollar values found: ${JSON.stringify(result.allValues || [])}`);
-    console.log(`[Jup.Ag Debug] Largest value: ${result.largestValue} (${result.largestNum})`);
-
-    if (result.largestValue) {
-      console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag Net Worth: $${result.largestValue}`);
-      return `$${result.largestValue}`;
+    if (result.allValues && result.allValues.length > 0) {
+      // Find first value between 100 and 100 million
+      for (const item of result.allValues) {
+        if (item.num > 100 && item.num < 100000000) {
+          console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag Net Worth: $${item.str} (${item.num})`);
+          return `$${item.str}`;
+        }
+      }
     }
   } catch (error) {
     console.log(`[Step.finance] [Attempt ${attempt}/3] Jup.Ag extraction error: ${error}`);
