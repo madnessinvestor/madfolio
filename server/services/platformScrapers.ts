@@ -188,7 +188,7 @@ async function scrapeJupiterPortfolioNetWorth(
   }, timeoutMs);
   
   try {
-    console.log('[JupiterPortfolio] Starting Net Worth scraper');
+    console.log('[JupiterPortfolio] Starting opportunistic scraper for jup.ag/portfolio');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
@@ -197,77 +197,58 @@ async function scrapeJupiterPortfolioNetWorth(
       console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
     );
     
-    console.log('[JupiterPortfolio] Waiting for "Net Worth" text to appear in DOM');
+    // Wait for JS to render
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
-    // Wait explicitly for "Net Worth" text to appear in the DOM
-    try {
-      await page.waitForFunction(() => {
-        return document.body.innerText.includes('Net Worth');
-      }, { timeout: 20000 });
-      console.log('[JupiterPortfolio] "Net Worth" text found in DOM');
-    } catch (waitError) {
-      console.log('[JupiterPortfolio] Timeout waiting for "Net Worth": ' + (waitError instanceof Error ? waitError.message : 'Unknown'));
-      return { value: null, success: false, platform: 'jupiter', error: 'Net Worth text not found after 20s' };
-    }
+    console.log('[JupiterPortfolio] Extracting all monetary values using opportunistic strategy');
     
-    // Extract ONLY the Net Worth value
-    const rawValue = await page.evaluate(() => {
+    // Extract ALL monetary values and find the largest
+    const rawValues = await page.evaluate(() => {
       const fullText = document.body.innerText;
-      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       
-      // Find the line with "Net Worth"
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('Net Worth')) {
-          console.log('[JupiterPortfolio] Found Net Worth line: ' + lines[i]);
-          
-          // Check the next few lines for the dollar value
-          for (let j = i; j < Math.min(i + 5, lines.length); j++) {
-            const line = lines[j];
-            // Extract ONLY the first monetary value in dollars (European format: $X.XXX,XX)
-            // Regex: $ + optional spaces + digits with optional thousand separators (.) + comma + 2 decimals
-            const match = line.match(/\$\s*\d+(?:\.\d{3})*,\d{2}/);
-            if (match) {
-              const rawVal = match[0].trim();
-              console.log('[JupiterPortfolio] Extracted raw monetary value: ' + rawVal);
-              return rawVal;
-            }
-          }
+      // Match both European format ($1.911,36) and US format ($1,911.36)
+      const regex = /\$[\d.,]+/g;
+      const matches = fullText.match(regex);
+      
+      if (!matches || matches.length === 0) {
+        console.log('[JupiterPortfolio] No dollar values found');
+        return null;
+      }
+      
+      console.log('[JupiterPortfolio] Found ' + matches.length + ' monetary values');
+      return matches;
+    });
+    
+    if (rawValues && rawValues.length > 0) {
+      console.log('[JupiterPortfolio] Raw values found: ' + rawValues.join(', '));
+      
+      // Normalize and find the largest value
+      let maxValue = 0;
+      let maxFormattedValue = '';
+      
+      for (const rawValue of rawValues) {
+        // Normalize format
+        const normalizedValue = normalizeJupiterValue(rawValue);
+        const numericValue = parseFloat(normalizedValue);
+        
+        console.log('[JupiterPortfolio] Evaluated ' + rawValue + ' → ' + numericValue);
+        
+        // Only consider positive, valid values
+        if (!isNaN(numericValue) && numericValue > 0 && numericValue > maxValue) {
+          maxValue = numericValue;
+          maxFormattedValue = normalizedValue;
         }
       }
       
-      return null;
-    });
-    
-    if (rawValue) {
-      // Normalize European format to standard decimal
-      const normalizedValue = normalizeJupiterValue(rawValue);
-      console.log('[JupiterPortfolio] Normalized value: ' + normalizedValue);
-      
-      // CRITICAL: Validate the normalized value before returning
-      // Prevent returning 0 or invalid values
-      const numericValue = parseFloat(normalizedValue);
-      console.log('[JupiterPortfolio] Parsed numeric value: ' + numericValue);
-      
-      // Check for invalid results
-      if (isNaN(numericValue) || numericValue === 0 || normalizedValue === '' || normalizedValue === '0' || normalizedValue === '0.00') {
-        console.log('[JupiterPortfolio] VALIDATION FAILED - Invalid numeric value: ' + numericValue);
-        return { value: null, success: false, platform: 'jupiter', error: 'Invalid or zero Net Worth value parsed' };
+      if (maxValue > 0 && maxFormattedValue !== '') {
+        const finalValue = '$' + maxFormattedValue;
+        console.log('[JupiterPortfolio] VALIDATION PASSED - Largest value found: ' + finalValue);
+        return { value: finalValue, success: true, platform: 'jupiter' };
       }
-      
-      // Check that value is positive
-      if (numericValue <= 0) {
-        console.log('[JupiterPortfolio] VALIDATION FAILED - Value is not positive: ' + numericValue);
-        return { value: null, success: false, platform: 'jupiter', error: 'Net Worth value must be positive' };
-      }
-      
-      // Format with $ for display
-      const formattedValue = '$' + normalizedValue;
-      console.log('[JupiterPortfolio] VALIDATION PASSED - Returning formatted value: ' + formattedValue);
-      return { value: formattedValue, success: true, platform: 'jupiter' };
     }
     
-    console.log('[JupiterPortfolio] Could not extract Net Worth value from DOM');
-    return { value: null, success: false, platform: 'jupiter', error: 'Net Worth value not found in DOM' };
+    console.log('[JupiterPortfolio] Could not find valid positive monetary values');
+    return { value: null, success: false, platform: 'jupiter', error: 'No valid portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[JupiterPortfolio] Error:', msg);
