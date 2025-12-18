@@ -31,14 +31,14 @@ export default function WalletTracker() {
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/saldo/refresh");
+      const response = await apiRequest("POST", "/api/saldo/refresh", {});
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       toast({
-        title: "Atualizando saldos",
-        description: "Os saldos estao sendo atualizados em segundo plano.",
+        title: "Saldos atualizados",
+        description: "Os saldos foram atualizados com sucesso. Intervalos de 15 segundos entre requisições.",
       });
     },
     onError: () => {

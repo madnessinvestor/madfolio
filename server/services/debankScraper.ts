@@ -304,7 +304,8 @@ async function updateWalletBalance(wallet: WalletConfig): Promise<void> {
 
 async function scheduleWalletUpdates(): Promise<void> {
   WALLETS.forEach((wallet, index) => {
-    const delayMs = index * 10 * 1000; // 10 seconds between each wallet
+    // Increased interval: 15 seconds between wallets for better performance
+    const delayMs = index * 15 * 1000;
     
     console.log(`[Step.finance] Scheduling ${wallet.name} to update in ${delayMs / 1000} seconds`);
     
@@ -314,6 +315,47 @@ async function scheduleWalletUpdates(): Promise<void> {
     
     walletUpdateTimeouts.set(wallet.name, timeout);
   });
+}
+
+export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
+  console.log('[Step.finance] Force refresh requested with wait');
+  
+  // Clear any pending timeouts
+  walletUpdateTimeouts.forEach(timeout => clearTimeout(timeout));
+  walletUpdateTimeouts.clear();
+  
+  // Mark all wallets as loading
+  for (const wallet of WALLETS) {
+    balanceCache.set(wallet.name, {
+      id: wallet.id,
+      name: wallet.name,
+      link: wallet.link,
+      balance: 'Carregando...',
+      lastUpdated: new Date(),
+    });
+  }
+  
+  // Start updates with 15 second intervals between each wallet
+  const updatePromises = WALLETS.map((wallet, index) => {
+    return new Promise<void>((resolve) => {
+      const delayMs = index * 15 * 1000; // 15 seconds between each wallet
+      
+      setTimeout(async () => {
+        await updateWalletBalance(wallet);
+        resolve();
+      }, delayMs);
+    });
+  });
+  
+  // Calculate total wait time: (number_of_wallets - 1) * 15 seconds + initial wait of 15 seconds
+  const totalWaitMs = Math.max(15 * 1000, WALLETS.length * 15 * 1000);
+  console.log(`[Step.finance] Waiting ${totalWaitMs / 1000} seconds for all updates to complete`);
+  
+  // Wait for all updates to complete
+  await Promise.all(updatePromises);
+  
+  // Return updated balances
+  return getDetailedBalances();
 }
 
 export function getBalances(): Record<string, string> {
