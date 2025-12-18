@@ -65,58 +65,61 @@ const debankSelectors = [
 async function extractDebankNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
   console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting DeBank Net Worth for ${walletName}`);
   
-  for (let i = 0; i < debankSelectors.length; i++) {
-    const selector = debankSelectors[i];
-    console.log(`[Step.finance] [Attempt ${attempt}/3] Trying selector ${i + 1}/${debankSelectors.length}: ${selector}`);
-    
-    try {
-      const netWorth = await page.evaluate((sel: string) => {
-        try {
-          // Try multiple approaches to find the value
-          const elements = Array.from(document.querySelectorAll('*'));
-          
-          for (const el of elements) {
-            const text = el.textContent || '';
-            if (text.toLowerCase().includes('net worth') || text.toLowerCase().includes('patrimônio')) {
-              const parent = el.closest('[class*="flex"], [class*="grid"], [class*="container"]') as HTMLElement;
-              if (parent) {
-                const allText = parent.textContent || '';
-                const match = allText.match(/\$?\s*([\d,]+\.?\d*(?:[KMB])?)/);
-                if (match && !/%/.test(allText)) {
-                  return match[1];
-                }
-              }
-            }
+  try {
+    const netWorth = await page.evaluate(() => {
+      try {
+        // Strategy 1: Look for top-right corner value (large number with percentage)
+        // Usually appears as: $16 -1.34% or similar
+        const pageText = document.body.innerText;
+        const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        
+        // Find lines with $ followed by a number and then a percentage
+        // This pattern typically matches the portfolio total value in the top right
+        for (let i = 0; i < lines.length; i++) {
+          // Look for pattern like: $16 -1.34% or $1,234.56 +2.5%
+          const match = lines[i].match(/^\$\s*([\d,]+\.?\d*)\s+[-+][\d.]+%/);
+          if (match) {
+            console.log('[Debank] Found top-right format: ' + lines[i]);
+            return match[1];
           }
-          
-          // Fallback: search all text for Net Worth pattern
-          const pageText = document.body.innerText;
-          const lines = pageText.split('\n').map(l => l.trim()).filter(l => l);
-          
-          for (let j = 0; j < lines.length; j++) {
-            if (/net\s+worth|patrimônio\s+líquido/i.test(lines[j])) {
-              for (let k = j + 1; k < Math.min(j + 5, lines.length); k++) {
-                const match = lines[k].match(/\$?\s*([\d,]+\.?\d*(?:[KMB])?)/);
-                if (match && !/%/.test(lines[k]) && !lines[k].toLowerCase().includes('change')) {
-                  return match[1];
-                }
-              }
-            }
-          }
-          
-          return null;
-        } catch {
-          return null;
         }
-      }, selector);
-
-      if (netWorth) {
-        console.log(`[Step.finance] [Attempt ${attempt}/3] Found value with selector ${i + 1}: $${netWorth}`);
-        return `$${netWorth}`;
+        
+        // Strategy 2: Look for any line starting with $ and a large number (likely total)
+        // Process lines to find USD values, prioritizing larger amounts
+        const potentialValues: Array<{value: number, text: string}> = [];
+        
+        for (const line of lines) {
+          if (line.startsWith('$')) {
+            const match = line.match(/^\$\s*([\d,]+\.?\d*)/);
+            if (match) {
+              const numValue = parseFloat(match[1].replace(/,/g, ''));
+              if (numValue > 0 && numValue < 10000000) { // Reasonable wallet range
+                potentialValues.push({ value: numValue, text: match[1] });
+              }
+            }
+          }
+        }
+        
+        // Return the largest value found (usually the total portfolio value)
+        if (potentialValues.length > 0) {
+          potentialValues.sort((a, b) => b.value - a.value);
+          console.log('[Debank] Top value candidates: ' + potentialValues.slice(0, 3).map(v => v.text).join(', '));
+          return potentialValues[0].text;
+        }
+        
+        return null;
+      } catch (error) {
+        console.log('[Debank] Extraction error: ' + error);
+        return null;
       }
-    } catch (error) {
-      console.log(`[Step.finance] [Attempt ${attempt}/3] Selector ${i + 1} error: ${error}`);
+    });
+
+    if (netWorth) {
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Found value: $${netWorth}`);
+      return `$${netWorth}`;
     }
+  } catch (error) {
+    console.log(`[Step.finance] [Attempt ${attempt}/3] Error: ${error}`);
   }
   
   return null;
