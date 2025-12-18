@@ -108,88 +108,58 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
     // For Step.Finance, wait longer and try to find the "Patrimônio Líquido" element
     if (wallet.link.includes('step.finance')) {
       console.log(`[Step.finance] Waiting for Step.Finance page to render for ${wallet.name}`);
-      await new Promise(resolve => setTimeout(resolve, 8000));
+      await new Promise(resolve => setTimeout(resolve, 12000)); // Extended wait for better rendering
     } else {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Also increased for DeBank
     }
 
     // Try to find the balance text on the page
     const balance = await page.evaluate(() => {
       const allText = document.body.innerText;
+      const lines = allText.split('\n').map(l => l.trim()).filter(l => l);
       
-      // Check if it's Step.Finance (look for "Patrimônio Líquido" which means Net Worth in Portuguese)
-      if (allText.includes('Patrimônio Líquido')) {
-        // Split by lines and find the line with "Patrimônio Líquido"
-        const lines = allText.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].includes('Patrimônio Líquido')) {
-            // The next lines should contain the value
-            for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
-              const nextLine = lines[j].trim();
-              // Skip empty lines
-              if (!nextLine) continue;
-              
-              // Look for a line that matches currency format with numbers
-              const match = nextLine.match(/\$?([\d,]+\.?\d+)/);
-              if (match && !nextLine.includes('%') && !nextLine.includes('•') && nextLine.length < 50) {
-                return match[1];
-              }
+      // Strategy 1: Look for "Patrimônio Líquido" (Step.Finance) or similar patterns
+      for (let i = 0; i < lines.length; i++) {
+        // Check for Patrimônio Líquido
+        if (/patrimônio\s+líquido|net\s+worth/i.test(lines[i])) {
+          // Look in next lines for a number
+          for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+            const value = lines[j].match(/([\d.,]+)/);
+            if (value && !/%/.test(lines[j])) {
+              return value[1];
             }
           }
         }
-      }
-      
-      // Check for DeBank L2 balance (for DeBank)
-      const debanklMatch = allText.match(/DeBank\s+L2\s+balance:\s*\$?([\d,]+\.?\d*)/i);
-      if (debanklMatch) {
-        return debanklMatch[1];
-      }
-      
-      // Look for text nodes that contain balance information
-      const walker = document.createTreeWalker(
-        document.body,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-
-      let node;
-      const balancePatterns = [
-        /Patrimônio\s+Líquido\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /Net\s+Worth\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /DeBank\s+L2\s+balance:\s*\$?[\d,]+\.?\d*/i,
-        /Total\s+Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /Total\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /Portfolio\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
-      ];
-
-      while ((node = walker.nextNode())) {
-        const text = (node as any).textContent.trim();
-        for (const pattern of balancePatterns) {
-          const match = text.match(pattern);
-          if (match && !match[0].toLowerCase().includes('earnings')) {
-            // Extract just the number part
-            const numMatch = match[0].match(/\$?[\d,]+\.?\d*/);
-            if (numMatch) return numMatch[0];
+        
+        // Check for Total Balance or Balance (DeBank)
+        if (/^total\s*balance|^balance\s*:\s*\$|^total\s*:\s*\$/i.test(lines[i])) {
+          const value = lines[i].match(/([\d.,]+)/);
+          if (value) return value[1];
+          // Or look in next line
+          if (i + 1 < lines.length) {
+            const nextValue = lines[i + 1].match(/([\d.,]+)/);
+            if (nextValue) return nextValue[1];
           }
         }
       }
-
-      // Fallback: look for currency-formatted numbers but skip "Earnings"
-      const pageText = document.body.innerText;
-      const lines = pageText.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        // Skip earnings, profit, and other non-balance values
-        if (/earnings|profit|gain|loss|fee/i.test(line)) continue;
+      
+      // Strategy 2: Search for large numbers that look like balances
+      // (with comma separators or decimal points, indicating currency amounts)
+      for (const line of lines) {
+        // Skip obvious non-balance lines
+        if (/earnings|profit|loss|fee|gain|%|time|date|hour|minute|second|tx|transaction/i.test(line)) continue;
+        if (line.length > 100) continue; // Skip long lines
         
-        const numberMatch = line.match(/\$?([\d,]+\.?\d*)/);
-        if (numberMatch) {
-          const value = numberMatch[1];
-          // Look for reasonable balance amounts (not too small like fees, not timestamps)
-          const numValue = parseFloat(value.replace(/,/g, ''));
-          if (numValue > 10) {
-            return numberMatch[1];
+        // Look for currency amounts
+        const match = line.match(/([\d]{1,3}(?:[,][\d]{3})*(?:[.][\d]{2,})?)/);
+        if (match) {
+          const amount = match[1];
+          // Accept if it has comma separator or decimal
+          if (amount.includes(',') || amount.includes('.')) {
+            const numValue = parseFloat(amount.replace(/,/g, ''));
+            if (numValue > 10) { // Must be reasonable balance
+              return amount;
+            }
           }
         }
       }
@@ -236,22 +206,13 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
     }
     
     // Valid balance found
-    return cleanBalance ? {
-      id: wallet.id,
-      name: wallet.name,
-      link: wallet.link,
-      balance: cleanBalance,
-      lastUpdated: new Date(),
-    } : null;
-
-    await page.screenshot({ path: `/tmp/step_${wallet.name}.png`, fullPage: false });
     await page.close();
-
+    
     return {
       id: wallet.id,
       name: wallet.name,
       link: wallet.link,
-      balance: balance || 'Indisponível',
+      balance: cleanBalance,
       lastUpdated: new Date(),
     };
   } catch (error) {
