@@ -117,6 +117,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [walletName, setWalletName] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
   const [network, setNetwork] = useState("");
+  const [walletLoading, setWalletLoading] = useState(false);
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -312,6 +313,25 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setWalletName("");
     setWalletAddress("");
     setNetwork("");
+    setWalletLoading(false);
+  };
+
+  const fetchWalletBalanceData = async (address: string) => {
+    if (!address.startsWith("0x") || address.length !== 42) return;
+    
+    setWalletLoading(true);
+    try {
+      const response = await fetch(`/api/wallet-balance?address=${address}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCryptoValueUSD(data.balanceUSD.toFixed(2));
+        setCryptoValueBRL(data.balanceBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      }
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+    } finally {
+      setWalletLoading(false);
+    }
   };
 
   const resetUpdateForm = () => {
@@ -400,11 +420,18 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                       <Label htmlFor="wallet-address">Wallet</Label>
                       <Input
                         id="wallet-address"
-                        placeholder="Ex: 1A1z7agoat42gCkHYQTNexhYixjwQF5ugN"
+                        placeholder="Ex: 0x083c828b221b126965a146658d4e512337182df1"
                         value={walletAddress}
-                        onChange={(e) => setWalletAddress(e.target.value)}
+                        onChange={(e) => {
+                          setWalletAddress(e.target.value);
+                          if (e.target.value.startsWith("0x") && e.target.value.length === 42) {
+                            fetchWalletBalanceData(e.target.value);
+                          }
+                        }}
                         data-testid="input-wallet-address"
+                        disabled={walletLoading}
                       />
+                      {walletLoading && <p className="text-xs text-muted-foreground">Buscando saldo...</p>}
                     </div>
 
                     <div className="grid gap-2">

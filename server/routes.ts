@@ -6,6 +6,7 @@ import { z } from "zod";
 import { isAuthenticated } from "./replit_integrations/auth";
 import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services/pricing";
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
+import { fetchWalletBalance } from "./services/walletBalance";
 
 const investmentSchema = z.object({
   name: z.string().min(1),
@@ -299,6 +300,25 @@ export async function registerRoutes(
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch statement" });
+    }
+  });
+
+  app.get("/api/wallet-balance", async (req, res) => {
+    try {
+      const address = req.query.address as string;
+      if (!address) {
+        return res.status(400).json({ error: "address parameter is required" });
+      }
+
+      const balance = await fetchWalletBalance(address);
+      if (!balance) {
+        return res.status(404).json({ error: "Failed to fetch wallet balance" });
+      }
+
+      res.json(balance);
+    } catch (error) {
+      console.error("Error fetching wallet balance:", error);
+      res.status(500).json({ error: "Failed to fetch wallet balance" });
     }
   });
 
