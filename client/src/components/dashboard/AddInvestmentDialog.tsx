@@ -112,9 +112,8 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [priceError, setPriceError] = useState(false);
   const [investmentType, setInvestmentType] = useState("renda_fixa");
   const [variableIncomeType, setVariableIncomeType] = useState("bolsa_valores");
-  const [walletName, setWalletName] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
-  const [network, setNetwork] = useState("");
+  const [cryptoValueUSD, setCryptoValueUSD] = useState("");
+  const [cryptoValueBRL, setCryptoValueBRL] = useState("");
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -126,6 +125,12 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const { data: fetchedAssets = [] } = useQuery<ExistingAsset[]>({
     queryKey: ["/api/assets"],
     enabled: open && !providedAssets,
+  });
+
+  // Fetch exchange rates for crypto simplified
+  const { data: exchangeRates = { USD: 5.51 } } = useQuery<Record<string, number>>({
+    queryKey: ["/api/exchange-rates"],
+    enabled: open && market === "crypto_simplified",
   });
   
   const existingAssets = providedAssets || fetchedAssets;
@@ -201,7 +206,22 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     e.preventDefault();
     
     // Para cripto simplificado, renda fixa ou renda variável simplificada, validação simplificada
-    if (market === "crypto_simplified" || market === "fixed_income" || market === "variable_income_simplified") {
+    if (market === "crypto_simplified") {
+      if (!cryptoValueBRL) return;
+      const priceString = cryptoValueBRL.replace(/[^\d.,]/g, "");
+      const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
+      if (isNaN(parsedPrice)) return;
+
+      onAdd({
+        name: "Cripto",
+        symbol: `CRYPTO-${new Date().getTime()}`,
+        category: "crypto",
+        market: "crypto",
+        quantity: 1,
+        acquisitionPrice: parsedPrice,
+        acquisitionDate: new Date().toISOString().split("T")[0],
+      });
+    } else if (market === "fixed_income" || market === "variable_income_simplified") {
       if (!name || !acquisitionPrice) return;
       const priceString = acquisitionPrice.replace(/[^\d.,]/g, "");
       const parsedPrice = parseFloat(priceString.replace(/\./g, "").replace(",", "."));
@@ -220,7 +240,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
 
       onAdd({
         name,
-        symbol: market === "crypto_simplified" ? (walletAddress.substring(0, 10) || name.substring(0, 10)) : name.substring(0, 10),
+        symbol: name.substring(0, 10),
         category: categoryType,
         market: marketType,
         quantity: 1,
@@ -284,9 +304,8 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setPriceError(false);
     setInvestmentType("renda_fixa");
     setVariableIncomeType("bolsa_valores");
-    setWalletName("");
-    setWalletAddress("");
-    setNetwork("");
+    setCryptoValueUSD("");
+    setCryptoValueBRL("");
   };
 
   const resetUpdateForm = () => {
@@ -361,51 +380,47 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                 {market === "crypto_simplified" ? (
                   <>
                     <div className="grid gap-2">
-                      <Label htmlFor="wallet-name">Nome da Carteira</Label>
+                      <Label htmlFor="crypto-value-usd">Valor Total (Dólares)</Label>
                       <Input
-                        id="wallet-name"
-                        placeholder="Ex: Carteira Principal, Coinbase, etc"
-                        value={walletName}
-                        onChange={(e) => setWalletName(e.target.value)}
-                        data-testid="input-wallet-name"
+                        id="crypto-value-usd"
+                        placeholder="USD 0,00"
+                        value={cryptoValueUSD}
+                        onChange={(e) => {
+                          const usdValue = e.target.value.replace(/[^\d.,]/g, "");
+                          setCryptoValueUSD(usdValue);
+                          
+                          if (usdValue) {
+                            const parsedUSD = parseFloat(usdValue.replace(/\./g, "").replace(",", "."));
+                            if (!isNaN(parsedUSD)) {
+                              const brlValue = parsedUSD * exchangeRates.USD;
+                              const formatted = (brlValue).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              });
+                              setCryptoValueBRL(`${formatted}`);
+                            }
+                          } else {
+                            setCryptoValueBRL("");
+                          }
+                        }}
+                        data-testid="input-crypto-value-usd"
                       />
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="wallet-address">Wallet</Label>
+                      <Label htmlFor="crypto-value-brl">Valor Total (Reais)</Label>
                       <Input
-                        id="wallet-address"
-                        placeholder="Ex: 1A1z7agoat42gCkHYQTNexhYixjwQF5ugN"
-                        value={walletAddress}
-                        onChange={(e) => setWalletAddress(e.target.value)}
-                        data-testid="input-wallet-address"
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="network">Rede</Label>
-                      <Input
-                        id="network"
-                        placeholder="Ex: Bitcoin, Ethereum, Polygon, etc"
-                        value={network}
-                        onChange={(e) => setNetwork(e.target.value)}
-                        data-testid="input-network"
-                      />
-                    </div>
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="total-value">Valor Total</Label>
-                      <Input
-                        id="total-value"
+                        id="crypto-value-brl"
                         placeholder="R$ 0,00"
-                        value={acquisitionPrice}
-                        onChange={(e) => setAcquisitionPrice(formatCurrency(e.target.value))}
-                        data-testid="input-crypto-total-value"
+                        value={cryptoValueBRL}
+                        onChange={(e) => setCryptoValueBRL(e.target.value)}
+                        disabled
+                        data-testid="input-crypto-value-brl"
                       />
                     </div>
 
                     <p className="text-sm text-muted-foreground">
-                      Os valores são armazenados em Reais (BRL).
+                      Cotação USD: R$ {exchangeRates.USD?.toFixed(2) || "5.51"}. Os valores são armazenados em Reais (BRL).
                     </p>
                   </>
                 ) : market === "fixed_income" ? (
