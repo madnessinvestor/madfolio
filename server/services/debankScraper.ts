@@ -110,10 +110,18 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
 
     // Try to find the balance text on the page
     const balance = await page.evaluate(() => {
-      // First, try to find DeBank L2 balance specifically
       const allText = document.body.innerText;
       
-      // Look for "DeBank L2 balance: $X" pattern (the correct balance)
+      // Check if it's Step.Finance (look for "Patrimônio Líquido" which means Net Worth in Portuguese)
+      if (allText.includes('Patrimônio Líquido')) {
+        // For Step.Finance: look for the value right after "Patrimônio Líquido"
+        const stepMatch = allText.match(/Patrimônio\s+Líquido\s*\n\s*\$?([\d,]+\.?\d*)/i);
+        if (stepMatch) {
+          return stepMatch[1];
+        }
+      }
+      
+      // Check for DeBank L2 balance (for DeBank)
       const debanklMatch = allText.match(/DeBank\s+L2\s+balance:\s*\$?([\d,]+\.?\d*)/i);
       if (debanklMatch) {
         return debanklMatch[1];
@@ -128,9 +136,10 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
 
       let node;
       const balancePatterns = [
+        /Patrimônio\s+Líquido\s*[:\s]*\$?[\d,]+\.?\d*/i,
+        /Net\s+Worth\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /DeBank\s+L2\s+balance:\s*\$?[\d,]+\.?\d*/i,
         /Total\s+Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
-        /Net\s+Worth\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Total\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Portfolio\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
