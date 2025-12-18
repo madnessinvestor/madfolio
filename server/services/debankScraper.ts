@@ -127,147 +127,103 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
   return null;
 }
 
-// Extract Net Worth for Jup.Ag
+// Extract Net Worth for Jup.Ag - Semantic extraction targeting "Net Worth" label
 async function extractJupAgNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
-  console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Jup.Ag Net Worth for ${walletName}`);
-  
-  // Wait extra time for heavy pages (10 more seconds beyond the 20s initial wait)
-  await page.evaluate(() => new Promise(r => setTimeout(r, 10000)));
+  console.log(`[Jup.Ag] [Attempt ${attempt}/3] Extracting Net Worth for ${walletName}`);
   
   try {
-    // Strategy 0: Try to find the specific Net Worth span element using multiple selectors
-    const specificValue = await page.evaluate(() => {
-      // Try different selectors and methods to find the value
-      const candidates: string[] = [];
-      
-      // Try text-none and whitespace-nowrap classes
-      const spans = document.querySelectorAll('span');
-      for (const span of spans) {
-        const text = (span.innerText || span.textContent || '').trim();
-        if (text.match(/^\$[\d,.]+$/) && text.length < 20) {
-          candidates.push(text);
-        }
-      }
-      
-      // Also try divs
-      const divs = document.querySelectorAll('div');
-      for (const div of divs) {
-        const text = (div.innerText || '').trim();
-        if (text.match(/^\$[\d,.]+$/) && text.length < 20) {
-          candidates.push(text);
-        }
-      }
-      
-      return candidates.length > 0 ? candidates[0] : null;
-    });
-    
-    if (specificValue) {
-      const cleanValue = specificValue.replace(/[\$\s]/g, '');
-      let numValue: number;
-      
-      if (cleanValue.includes('.') && cleanValue.includes(',')) {
-        const lastDot = cleanValue.lastIndexOf('.');
-        const lastComma = cleanValue.lastIndexOf(',');
-        numValue = lastComma > lastDot 
-          ? parseFloat(cleanValue.replace(/\./g, '').replace(',', '.'))
-          : parseFloat(cleanValue.replace(/,/g, ''));
-      } else if (cleanValue.includes(',')) {
-        numValue = parseFloat(cleanValue.replace(',', '.'));
-      } else {
-        numValue = parseFloat(cleanValue.replace(/\./g, ''));
-      }
-      
-      if (!isNaN(numValue) && numValue > 0) {
-        console.log(`[Step.finance] [Attempt ${attempt}/3] Found via element search: $${cleanValue} (${numValue})`);
-        return `$${cleanValue}`;
-      }
+    // Step 1: Wait for "Net Worth" element to appear in DOM (max 20 seconds)
+    console.log(`[Jup.Ag] [Attempt ${attempt}/3] Waiting for Net Worth element to appear...`);
+    try {
+      await page.waitForFunction(() => {
+        const allText = document.body.innerText;
+        return allText.includes('Net Worth');
+      }, { timeout: 20000 });
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] Net Worth element found in DOM`);
+    } catch (waitError) {
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] Timeout waiting for Net Worth element`);
+      return null;
     }
-    
-    // Fallback Strategy: Extract all numbers if specific selector didn't work
-    const result = await page.evaluate(() => {
-      // Try both innerText and textContent to capture all visible text
-      const pageText = (document.body.innerText || '') + '\n' + (document.body.textContent || '');
-      
-      const allValues: Array<{ str: string; num: number }> = [];
-      
-      // Strategy 1: Extract currency formatted numbers ($X,XXX.XX or €2.008,95)
-      const currencyMatches = pageText.match(/[\$€][\s]*[\d,.]+/g) || [];
-      
-      for (const match of currencyMatches) {
-        const value = match.replace(/[\$€\s]/g, '');
-        let numValue: number;
-        
-        if (value.includes('.') && value.includes(',')) {
-          const lastDot = value.lastIndexOf('.');
-          const lastComma = value.lastIndexOf(',');
-          numValue = lastComma > lastDot 
-            ? parseFloat(value.replace(/\./g, '').replace(',', '.'))
-            : parseFloat(value.replace(/,/g, ''));
-        } else if (value.includes(',')) {
-          numValue = parseFloat(value.replace(',', '.'));
-        } else if (value.includes('.')) {
-          const parts = value.split('.');
-          numValue = parts[parts.length - 1].length <= 2 && parts[0].length > 2
-            ? parseFloat(value.replace(/\./g, ''))
-            : parseFloat(value);
-        } else {
-          numValue = parseFloat(value);
-        }
-        
-        if (!isNaN(numValue) && numValue > 0) {
-          allValues.push({ str: value, num: numValue });
-        }
-      }
-      
-      // Strategy 2: Extract ANY number with dots and/or commas (aggressive matching for all numeric patterns)
-      const bigNumberMatches = pageText.match(/\d+(?:[.,]\d+)+/g) || [];
-      
-      for (const match of bigNumberMatches) {
-        let numValue: number;
-        
-        if (match.includes('.') && match.includes(',')) {
-          const lastDot = match.lastIndexOf('.');
-          const lastComma = match.lastIndexOf(',');
-          numValue = lastComma > lastDot 
-            ? parseFloat(match.replace(/\./g, '').replace(',', '.'))
-            : parseFloat(match.replace(/,/g, ''));
-        } else if (match.includes(',')) {
-          numValue = parseFloat(match.replace(',', '.'));
-        } else if (match.includes('.')) {
-          const parts = match.split('.');
-          numValue = parts[parts.length - 1].length <= 2
-            ? parseFloat(match.replace(/\./g, ''))
-            : parseFloat(match);
-        } else {
-          numValue = parseFloat(match);
-        }
-        
-        // Avoid duplicates
-        if (!isNaN(numValue) && numValue > 0 && !allValues.some(v => v.num === numValue)) {
-          allValues.push({ str: match, num: numValue });
-        }
-      }
-      
-      allValues.sort((a, b) => b.num - a.num);
-      return { allValues };
-    });
 
-    // Extract largest currency value found
-    if (result.allValues && result.allValues.length > 0) {
-      console.log(`[Jup.Ag Debug] Top 5 currency values:`, result.allValues.slice(0, 5).map((v: any) => `${v.str}=${v.num}`).join(', '));
-      
-      // Accept values from $10 upward (more flexible lower bound)
-      for (const item of result.allValues) {
-        if (item.num >= 10 && item.num < 100000000) {
-          console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag Net Worth: $${item.str} (${item.num})`);
-          return `$${item.str}`;
+    // Step 2: Extract Net Worth value with semantic selection
+    const extractNetWorth = async (): Promise<string | null> => {
+      const result = await page.evaluate(() => {
+        const fullText = document.body.innerText;
+        const lines = fullText.split('\n');
+        
+        // Find line with "Net Worth"
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          
+          // Check if this line contains "Net Worth" (case-insensitive, word boundary)
+          if (/\bnet\s+worth\b/i.test(line)) {
+            // Skip if line contains disqualifying keywords
+            if (/\bpnl\b|\bclaimable\b|−|^\-/i.test(line)) {
+              continue;
+            }
+            
+            // Try to extract value from current line
+            let valueMatch = line.match(/\$\s*([\d,.]+)/);
+            
+            // If not in same line, check next few lines
+            if (!valueMatch) {
+              for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                const nextLine = lines[j].trim();
+                // Skip lines with PnL or negative values
+                if (!/\bpnl\b|\bclaimable\b|−|^\-/i.test(nextLine)) {
+                  valueMatch = nextLine.match(/\$\s*([\d,.]+)/);
+                  if (valueMatch) break;
+                }
+              }
+            }
+            
+            if (valueMatch) {
+              return { value: valueMatch[1], found: true };
+            }
+          }
         }
+        
+        return { found: false };
+      });
+      
+      if (result?.found && result?.value) {
+        return `$${result.value}`;
       }
-    }
+      return null;
+    };
+
+    // Step 3: Get first reading
+    console.log(`[Jup.Ag] [Attempt ${attempt}/3] Reading 1 of 2...`);
+    const reading1 = await extractNetWorth();
     
-    console.log(`[Jup.Ag Debug] No valid value found`);
+    if (!reading1) {
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] First reading failed - Net Worth not found`);
+      return null;
+    }
+
+    // Step 4: Wait 2 seconds for stabilization
+    await page.evaluate(() => new Promise(r => setTimeout(r, 2000)));
+
+    // Step 5: Get second reading to confirm value is stable
+    console.log(`[Jup.Ag] [Attempt ${attempt}/3] Reading 2 of 2...`);
+    const reading2 = await extractNetWorth();
+    
+    if (!reading2) {
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] Second reading failed - value unstable`);
+      return null;
+    }
+
+    // Step 6: Verify readings match
+    if (reading1 === reading2) {
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] ✓ Value confirmed stable: ${reading1}`);
+      return reading1;
+    } else {
+      console.log(`[Jup.Ag] [Attempt ${attempt}/3] ✗ Value mismatch - Reading 1: ${reading1}, Reading 2: ${reading2}`);
+      return null;
+    }
+
   } catch (error) {
-    console.log(`[Step.finance] [Attempt ${attempt}/3] Jup.Ag extraction error: ${error}`);
+    console.log(`[Jup.Ag] [Attempt ${attempt}/3] Extraction error: ${error}`);
   }
   
   return null;
@@ -443,14 +399,18 @@ async function scrapeWalletBalanceWithRetry(
 
       if (wallet.link.includes('jup.ag')) {
         balance = await extractJupAgNetWorth(page, wallet.name, attempt);
+        // For Jup.ag, NEVER use generic fallback if semantic extraction fails
+        // This prevents capturing "Holdings PnL" or other incorrect values
       } else if (wallet.link.includes('step.finance')) {
         balance = await extractStepFinancePortfolioValue(page, wallet.name, attempt);
+        if (!balance) {
+          balance = await extractGenericValue(page, wallet.name, attempt);
+        }
       } else if (wallet.link.includes('debank.com')) {
         balance = await extractDebankNetWorth(page, wallet.name, attempt);
-      }
-
-      if (!balance) {
-        balance = await extractGenericValue(page, wallet.name, attempt);
+        if (!balance) {
+          balance = await extractGenericValue(page, wallet.name, attempt);
+        }
       }
 
       await page.close();
