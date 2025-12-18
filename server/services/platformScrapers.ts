@@ -242,8 +242,26 @@ async function scrapeJupiterPortfolioNetWorth(
       const normalizedValue = normalizeJupiterValue(rawValue);
       console.log('[JupiterPortfolio] Normalized value: ' + normalizedValue);
       
+      // CRITICAL: Validate the normalized value before returning
+      // Prevent returning 0 or invalid values
+      const numericValue = parseFloat(normalizedValue);
+      console.log('[JupiterPortfolio] Parsed numeric value: ' + numericValue);
+      
+      // Check for invalid results
+      if (isNaN(numericValue) || numericValue === 0 || normalizedValue === '' || normalizedValue === '0' || normalizedValue === '0.00') {
+        console.log('[JupiterPortfolio] VALIDATION FAILED - Invalid numeric value: ' + numericValue);
+        return { value: null, success: false, platform: 'jupiter', error: 'Invalid or zero Net Worth value parsed' };
+      }
+      
+      // Check that value is positive
+      if (numericValue <= 0) {
+        console.log('[JupiterPortfolio] VALIDATION FAILED - Value is not positive: ' + numericValue);
+        return { value: null, success: false, platform: 'jupiter', error: 'Net Worth value must be positive' };
+      }
+      
       // Format with $ for display
       const formattedValue = '$' + normalizedValue;
+      console.log('[JupiterPortfolio] VALIDATION PASSED - Returning formatted value: ' + formattedValue);
       return { value: formattedValue, success: true, platform: 'jupiter' };
     }
     
