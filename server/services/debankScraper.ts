@@ -122,62 +122,55 @@ async function extractDebankNetWorth(page: any, walletName: string, attempt: num
   return null;
 }
 
-// Extract Net Worth for Jup.Ag - looks for the Net Worth section and avoids Holdings PnL
+// Extract Net Worth for Jup.Ag - Super simple: get LARGEST value that's > 1000
 async function extractJupAgNetWorth(page: any, walletName: string, attempt: number): Promise<string | null> {
   console.log(`[Step.finance] [Attempt ${attempt}/3] Extracting Jup.Ag Net Worth for ${walletName}`);
   
   try {
     const netWorth = await page.evaluate(() => {
-      try {
-        const pageText = document.body.innerText;
-        const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const pageText = document.body.innerText;
+      
+      // Find all dollar amounts in the page
+      const matches = pageText.match(/\$\s*([\d,.]+)/g);
+      if (!matches) return null;
+      
+      let largestValue = null;
+      let largestNum = 0;
+      
+      for (const match of matches) {
+        const value = match.replace('$', '').trim();
+        let numValue: number;
         
-        // Look for "Net Worth" label and get the value that comes with it (avoiding Holdings PnL)
-        for (let i = 0; i < lines.length; i++) {
-          const currentLine = lines[i].toLowerCase();
-          
-          // Check if this line contains "Net Worth" label
-          if (currentLine.includes('net worth') && !currentLine.includes('holdings')) {
-            // Look in current and next line for the USD value
-            let value = null;
-            
-            // First, try to extract from the same line or next line
-            for (let j = i; j < Math.min(i + 2, lines.length); j++) {
-              const line = lines[j];
-              // Skip lines that mention "Holdings" or "PnL" to avoid getting wrong column
-              if (line.toLowerCase().includes('holdings') || line.toLowerCase().includes('pnl')) {
-                continue;
-              }
-              
-              // Match pattern like "$2.031,91" or "$2,031.91" or similar variations
-              const match = line.match(/\$\s*([\d,.]+)/);
-              if (match) {
-                const rawValue = match[1];
-                // Normalize the value - handle both "." and "," as separators
-                const numValue = parseFloat(rawValue.replace(/[,]/g, '.').replace(/[.]/g, ',').replace(/[,]/g, '.'));
-                if (numValue > 0 && numValue < 100000000) {
-                  value = rawValue;
-                  console.log('[Jup.Ag] Found Net Worth value: $' + rawValue);
-                  return rawValue;
-                }
-              }
-            }
+        // Parse: handle "2.031,91" (European) or "2,031.91" (US)
+        if (value.includes('.') && value.includes(',')) {
+          if (value.lastIndexOf(',') > value.lastIndexOf('.')) {
+            numValue = parseFloat(value.replace(/\./g, '').replace(',', '.'));
+          } else {
+            numValue = parseFloat(value.replace(/,/g, ''));
           }
+        } else if (value.includes(',')) {
+          numValue = parseFloat(value.replace(',', '.'));
+        } else {
+          numValue = parseFloat(value);
         }
         
-        return null;
-      } catch (error) {
-        console.log('[Jup.Ag] Extraction error: ' + error);
-        return null;
+        // Keep track of the largest value > 1000 (Net Worth)
+        // Ignores: $2.61, $529, -$529, $100
+        if (numValue > 1000 && numValue < 100000000 && numValue > largestNum) {
+          largestValue = value;
+          largestNum = numValue;
+        }
       }
+      
+      return largestValue;
     });
 
     if (netWorth) {
-      console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag value: $${netWorth}`);
+      console.log(`[Step.finance] [Attempt ${attempt}/3] Found Jup.Ag Net Worth: $${netWorth}`);
       return `$${netWorth}`;
     }
   } catch (error) {
-    console.log(`[Step.finance] [Attempt ${attempt}/3] Error: ${error}`);
+    console.log(`[Step.finance] [Attempt ${attempt}/3] Jup.Ag extraction error: ${error}`);
   }
   
   return null;
@@ -340,14 +333,14 @@ async function scrapeWalletBalanceWithRetry(
       // Web scraping fallback
       console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Starting web scraping`);
       await page.goto(wallet.link, { 
-        waitUntil: 'domcontentloaded',
+        waitUntil: 'networkidle2',
         timeout: 120000 
       }).catch((err) => {
         console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Page load warning: ${err.message}`);
       });
 
-      console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Mandatory 15-second wait`);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      console.log(`[Step.finance] [Attempt ${attempt}/${maxRetries}] Mandatory 20-second wait for JS rendering`);
+      await new Promise(resolve => setTimeout(resolve, 20000));
 
       let balance: string | null = null;
 
