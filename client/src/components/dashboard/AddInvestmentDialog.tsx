@@ -117,6 +117,7 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [cryptoValueBRL, setCryptoValueBRL] = useState("");
   const [walletName, setWalletName] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+  const [walletLink, setWalletLink] = useState("");
   const [network, setNetwork] = useState("");
   const [walletLoading, setWalletLoading] = useState(false);
 
@@ -314,8 +315,45 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setCryptoValueBRL("");
     setWalletName("");
     setWalletAddress("");
+    setWalletLink("");
     setNetwork("");
     setWalletLoading(false);
+  };
+
+  const parseWalletAddressFromLink = (link: string): string | null => {
+    try {
+      const url = new URL(link);
+      const hostname = url.hostname.toLowerCase();
+      
+      // Etherscan variants
+      if (hostname.includes("etherscan") || hostname.includes("ethers") || hostname.includes("blockscan")) {
+        const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
+        if (addressMatch) return addressMatch[1];
+      }
+      
+      // BlockScout
+      if (hostname.includes("blockscout")) {
+        const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
+        if (addressMatch) return addressMatch[1];
+      }
+      
+      // Polygon, Arbitrum, Optimism explorers
+      if (hostname.includes("polygonscan") || hostname.includes("arbiscan") || hostname.includes("optimistic")) {
+        const addressMatch = url.pathname.match(/address\/(0x[a-fA-F0-9]{40})/);
+        if (addressMatch) return addressMatch[1];
+      }
+      
+      // Direct address in URL path
+      const pathMatch = url.pathname.match(/(0x[a-fA-F0-9]{40})/);
+      if (pathMatch) return pathMatch[1];
+      
+      // Search in URL parameters
+      const addressParam = url.searchParams.get("address") || url.searchParams.get("a");
+      if (addressParam && /^0x[a-fA-F0-9]{40}$/.test(addressParam)) return addressParam;
+    } catch (error) {
+      console.error("Error parsing wallet link:", error);
+    }
+    return null;
   };
 
   const fetchWalletBalanceData = async (address: string) => {
@@ -420,7 +458,27 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="wallet-address">Wallet</Label>
+                      <Label htmlFor="wallet-link">Link da Wallet (Etherscan, BlockScout, etc)</Label>
+                      <Input
+                        id="wallet-link"
+                        placeholder="Ex: https://etherscan.io/address/0x083c828b221b126965a146658d4e512337182df1"
+                        value={walletLink}
+                        onChange={(e) => {
+                          setWalletLink(e.target.value);
+                          const parsedAddress = parseWalletAddressFromLink(e.target.value);
+                          if (parsedAddress) {
+                            setWalletAddress(parsedAddress);
+                            fetchWalletBalanceData(parsedAddress);
+                          }
+                        }}
+                        data-testid="input-wallet-link"
+                        disabled={walletLoading}
+                      />
+                      {walletLoading && <p className="text-xs text-muted-foreground">Buscando saldo...</p>}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-address">Wallet (Endereço direto)</Label>
                       <Input
                         id="wallet-address"
                         placeholder="Ex: 0x083c828b221b126965a146658d4e512337182df1"
