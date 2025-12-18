@@ -95,57 +95,79 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
       }
     }
 
-    // Fallback to browser scraping (skip if already tried API)
-    if (wallet.link.includes('debank.com')) {
-      console.log(`[Step.finance] API failed, skipping web scraping for ${wallet.name}`);
-      return {
-        id: wallet.id,
-        name: wallet.name,
-        link: wallet.link,
-        balance: 'Verifique a wallet',
-        lastUpdated: new Date(),
-        error: 'API não encontrou dados para este endereço',
-      };
-    }
-
+    // Fallback to browser scraping
+    console.log(`[Step.finance] Starting web scraping for ${wallet.name}`);
+    
     await page.goto(wallet.link, { 
-      waitUntil: 'networkidle2',
-      timeout: 30000 
+      waitUntil: 'networkidle0',
+      timeout: 45000 
+    }).catch((err) => {
+      console.log(`[Step.finance] Page load warning for ${wallet.name}: ${err.message}`);
     });
 
-    await page.waitForSelector('[class*="PortfolioValue"], [class*="portfolio"], [class*="total"]', { 
-      timeout: 20000 
-    }).catch(() => {
-      console.log(`[Step.finance] Waiting for dynamic content for ${wallet.name}...`);
-    });
-
+    // Wait for JavaScript to render
     await new Promise(resolve => setTimeout(resolve, 3000));
 
+    // Try to find the balance text on the page
     const balance = await page.evaluate(() => {
-      const selectors = [
-        '[class*="PortfolioValue"]',
-        '[class*="totalValue"]',
-        '[class*="total-value"]',
-        'span[class*="value"]',
+      // Look for text nodes that contain balance information
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node;
+      const balancePatterns = [
+        /Total\s*[:\s]*\$?[\d,]+\.?\d*/i,
+        /Portfolio\s*[:\s]*\$?[\d,]+\.?\d*/i,
+        /Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
       ];
 
-      for (const selector of selectors) {
-        const elements = Array.from(document.querySelectorAll(selector));
-        for (const el of elements) {
-          const text = (el as HTMLElement).textContent?.trim();
-          if (text && /(\$|USD|SOL)[\s\d,.]+/i.test(text)) {
-            return text;
+      while ((node = walker.nextNode())) {
+        const text = (node as any).textContent.trim();
+        for (const pattern of balancePatterns) {
+          const match = text.match(pattern);
+          if (match) {
+            // Extract just the number part
+            const numMatch = match[0].match(/\$?[\d,]+\.?\d*/);
+            if (numMatch) return numMatch[0];
           }
         }
+      }
+
+      // Fallback: look for any large number in the page
+      const allText = document.body.innerText;
+      const numberMatches = allText.match(/\$?[\d,]{3,}\.\d{2}/g);
+      if (numberMatches && numberMatches.length > 0) {
+        return numberMatches[0];
       }
 
       return null;
     });
 
     if (balance) {
-      console.log(`[Step.finance] Found balance for ${wallet.name}: ${balance}`);
+      console.log(`[Step.finance] Found balance via scraping for ${wallet.name}: ${balance}`);
     } else {
-      console.log(`[Step.finance] No balance found for ${wallet.name}`);
+      console.log(`[Step.finance] No balance found via scraping for ${wallet.name}, trying alternative method`);
+      
+      // Try getting the page title or meta tags
+      const alternativeBalance = await page.evaluate(() => {
+        const titleText = document.title || '';
+        const match = titleText.match(/\$?[\d,]+\.?\d*/);
+        return match ? match[0] : null;
+      });
+      
+      if (alternativeBalance) {
+        console.log(`[Step.finance] Found balance in title for ${wallet.name}: ${alternativeBalance}`);
+        return {
+          id: wallet.id,
+          name: wallet.name,
+          link: wallet.link,
+          balance: alternativeBalance,
+          lastUpdated: new Date(),
+        };
+      }
     }
 
     await page.screenshot({ path: `/tmp/step_${wallet.name}.png`, fullPage: false });
