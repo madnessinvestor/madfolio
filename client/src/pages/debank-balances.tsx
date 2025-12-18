@@ -11,7 +11,7 @@ import { useState } from "react";
 interface WalletBalance {
   id?: string;
   name: string;
-  address: string;
+  link: string;
   balance: string;
   lastUpdated: string;
   error?: string;
@@ -20,7 +20,8 @@ interface WalletBalance {
 export default function WalletTracker() {
   const { toast } = useToast();
   const [newWalletName, setNewWalletName] = useState("");
-  const [newWalletAddress, setNewWalletAddress] = useState("");
+  const [newWalletLink, setNewWalletLink] = useState("");
+  const [newWalletPlatform, setNewWalletPlatform] = useState("step");
   const [isAddingWallet, setIsAddingWallet] = useState(false);
 
   const { data: balances, isLoading, error } = useQuery<WalletBalance[]>({
@@ -50,14 +51,15 @@ export default function WalletTracker() {
   });
 
   const addWalletMutation = useMutation({
-    mutationFn: async (data: { name: string; address: string }) => {
+    mutationFn: async (data: { name: string; link: string; platform: string }) => {
       const response = await apiRequest("POST", "/api/wallets", data);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       setNewWalletName("");
-      setNewWalletAddress("");
+      setNewWalletLink("");
+      setNewWalletPlatform("step");
       setIsAddingWallet(false);
       toast({
         title: "Sucesso",
@@ -105,8 +107,10 @@ export default function WalletTracker() {
     });
   };
 
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const getPlatformName = (link: string) => {
+    if (link.includes("step.finance")) return "Solana";
+    if (link.includes("debank.com")) return "DeBank";
+    return "Link";
   };
 
   if (isLoading) {
@@ -133,7 +137,7 @@ export default function WalletTracker() {
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-title">Wallet Tracker</h1>
-          <p className="text-muted-foreground">Monitore seus saldos de crypto de forma automatizada</p>
+          <p className="text-muted-foreground">Monitore saldos de suas wallets em múltiplas plataformas</p>
         </div>
         <Button
           onClick={() => refreshMutation.mutate()}
@@ -160,11 +164,11 @@ export default function WalletTracker() {
               </CardTitle>
               <div className="flex items-center gap-2">
                 <a
-                  href={`https://debank.com/profile/${wallet.address}`}
+                  href={wallet.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-muted-foreground hover:text-foreground"
-                  data-testid={`link-debank-${wallet.id || wallet.name}`}
+                  data-testid={`link-wallet-${wallet.id || wallet.name}`}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </a>
@@ -192,7 +196,7 @@ export default function WalletTracker() {
               </div>
               <div className="flex items-center justify-between gap-2 mt-2">
                 <span className="text-xs text-muted-foreground">
-                  {truncateAddress(wallet.address)}
+                  {getPlatformName(wallet.link)}
                 </span>
                 {wallet.error ? (
                   <Badge variant="destructive" className="text-xs">Erro</Badge>
@@ -222,21 +226,34 @@ export default function WalletTracker() {
                 data-testid="input-wallet-name"
               />
               <Input
-                placeholder="Endereço (0x...)"
-                value={newWalletAddress}
-                onChange={(e) => setNewWalletAddress(e.target.value)}
-                data-testid="input-wallet-address"
+                placeholder="Link/URL da wallet"
+                value={newWalletLink}
+                onChange={(e) => setNewWalletLink(e.target.value)}
+                data-testid="input-wallet-link"
               />
+              <select
+                value={newWalletPlatform}
+                onChange={(e) => setNewWalletPlatform(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                data-testid="select-platform"
+              >
+                <option value="step">Solana (Step.finance)</option>
+                <option value="debank">EVM (DeBank)</option>
+              </select>
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   onClick={() => {
-                    if (newWalletName && newWalletAddress) {
-                      addWalletMutation.mutate({ name: newWalletName, address: newWalletAddress });
+                    if (newWalletName && newWalletLink) {
+                      addWalletMutation.mutate({ 
+                        name: newWalletName, 
+                        link: newWalletLink,
+                        platform: newWalletPlatform
+                      });
                     } else {
                       toast({
                         title: "Erro",
-                        description: "Preencha nome e endereço.",
+                        description: "Preencha nome e link.",
                         variant: "destructive",
                       });
                     }
@@ -253,7 +270,8 @@ export default function WalletTracker() {
                   onClick={() => {
                     setIsAddingWallet(false);
                     setNewWalletName("");
-                    setNewWalletAddress("");
+                    setNewWalletLink("");
+                    setNewWalletPlatform("step");
                   }}
                   data-testid="button-cancel-wallet"
                 >
@@ -281,7 +299,7 @@ export default function WalletTracker() {
       </div>
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
-        Os saldos sao obtidos via scraping do DeBank usando Puppeteer. 
+        Os saldos sao obtidos via scraping de múltiplas plataformas usando Puppeteer. 
         A atualizacao automatica ocorre a cada 1 hora com intervalos de 10 segundos entre wallets.
       </div>
     </div>

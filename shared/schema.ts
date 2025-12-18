@@ -57,10 +57,13 @@ export const wallets = pgTable("wallets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id"),
   name: text("name").notNull(),
-  address: text("address").notNull(),
+  link: text("link").notNull(),
+  platform: text("platform").notNull().default("debank"), // debank, step
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true });
+export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true }).extend({
+  platform: z.enum(["debank", "step"]).default("debank"),
+});
 export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export type Wallet = typeof wallets.$inferSelect;

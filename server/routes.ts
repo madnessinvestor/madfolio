@@ -7,7 +7,7 @@ import { isAuthenticated } from "./replit_integrations/auth";
 import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services/pricing";
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
 import { fetchWalletBalance } from "./services/walletBalance";
-import { getBalances, getDetailedBalances, startDeBankMonitor, forceRefresh, setWallets } from "./services/debankScraper";
+import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, setWallets } from "./services/debankScraper";
 import { insertWalletSchema } from "@shared/schema";
 
 const investmentSchema = z.object({
@@ -26,7 +26,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   startPriceUpdater(5 * 60 * 1000);
-  startDeBankMonitor(60 * 60 * 1000); // 1 hour with 10 second spacing between wallets
+  startStepMonitor(60 * 60 * 1000); // 1 hour with 10 second spacing between wallets
 
   app.get("/api/assets", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub;
@@ -511,7 +511,7 @@ export async function registerRoutes(
       const wallet = await storage.createWallet({ ...validated, userId });
       
       const allWallets = await storage.getWallets(userId);
-      setWallets(allWallets.map(w => ({ id: w.id, name: w.name, address: w.address })));
+      setWallets(allWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
       
       res.status(201).json(wallet);
     } catch (error) {
@@ -538,7 +538,7 @@ export async function registerRoutes(
       }
       
       const updatedWallets = await storage.getWallets(userId);
-      setWallets(updatedWallets.map(w => ({ id: w.id, name: w.name, address: w.address })));
+      setWallets(updatedWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
       
       res.status(204).send();
     } catch (error) {
