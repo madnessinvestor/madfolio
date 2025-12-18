@@ -21,7 +21,6 @@ export default function WalletTracker() {
   const { toast } = useToast();
   const [newWalletName, setNewWalletName] = useState("");
   const [newWalletLink, setNewWalletLink] = useState("");
-  const [newWalletPlatform, setNewWalletPlatform] = useState("step");
   const [isAddingWallet, setIsAddingWallet] = useState(false);
 
   const { data: balances, isLoading, error } = useQuery<WalletBalance[]>({
@@ -51,7 +50,7 @@ export default function WalletTracker() {
   });
 
   const addWalletMutation = useMutation({
-    mutationFn: async (data: { name: string; link: string; platform: string }) => {
+    mutationFn: async (data: { name: string; link: string }) => {
       const response = await apiRequest("POST", "/api/wallets", data);
       return response.json();
     },
@@ -59,7 +58,6 @@ export default function WalletTracker() {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       setNewWalletName("");
       setNewWalletLink("");
-      setNewWalletPlatform("step");
       setIsAddingWallet(false);
       toast({
         title: "Sucesso",
@@ -234,15 +232,6 @@ export default function WalletTracker() {
                 onChange={(e) => setNewWalletLink(e.target.value)}
                 data-testid="input-wallet-link"
               />
-              <select
-                value={newWalletPlatform}
-                onChange={(e) => setNewWalletPlatform(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md text-sm"
-                data-testid="select-platform"
-              >
-                <option value="step">Solana (Step.finance)</option>
-                <option value="debank">EVM (DeBank)</option>
-              </select>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -250,8 +239,7 @@ export default function WalletTracker() {
                     if (newWalletName && newWalletLink) {
                       addWalletMutation.mutate({ 
                         name: newWalletName, 
-                        link: newWalletLink,
-                        platform: newWalletPlatform
+                        link: newWalletLink
                       });
                     } else {
                       toast({
@@ -274,7 +262,6 @@ export default function WalletTracker() {
                     setIsAddingWallet(false);
                     setNewWalletName("");
                     setNewWalletLink("");
-                    setNewWalletPlatform("step");
                   }}
                   data-testid="button-cancel-wallet"
                 >

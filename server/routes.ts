@@ -509,7 +509,21 @@ export async function registerRoutes(
     const userId = req.user?.claims?.sub;
     try {
       const validated = insertWalletSchema.parse(req.body);
-      const wallet = await storage.createWallet({ ...validated, userId });
+      
+      // Auto-detect platform based on URL
+      let platform = "debank";
+      if (validated.link.includes("step.finance")) {
+        platform = "step";
+      } else if (validated.link.includes("debank.com")) {
+        platform = "debank";
+      }
+      
+      const wallet = await storage.createWallet({
+        name: validated.name,
+        link: validated.link,
+        userId,
+        platform
+      } as any);
       
       const allWallets = await storage.getWallets(userId);
       setWallets(allWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
