@@ -9,6 +9,7 @@ const registerSchema = z.object({
   username: z.string().min(3, "Usuário deve ter pelo menos 3 caracteres"),
   email: z.string().email("Email inválido"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  profileImage: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -38,6 +39,7 @@ export function setupCredentialAuth(app: Express) {
         email: validated.email,
         passwordHash,
         authProvider: "local",
+        profileImageUrl: validated.profileImage || null,
       }).returning();
 
       (req as any).login({
@@ -52,6 +54,7 @@ export function setupCredentialAuth(app: Express) {
           id: newUser.id,
           username: newUser.username,
           email: newUser.email,
+          profileImageUrl: newUser.profileImageUrl,
         });
       });
     } catch (error) {
@@ -100,6 +103,7 @@ export function setupCredentialAuth(app: Express) {
           id: user.id,
           username: user.username,
           email: user.email,
+          profileImageUrl: user.profileImageUrl,
         });
       });
     } catch (error) {

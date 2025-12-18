@@ -4,16 +4,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, TrendingUp, Landmark, BarChart3, Loader2, Mail, Lock, User } from "lucide-react";
+import { Wallet, TrendingUp, Landmark, BarChart3, Loader2, Mail, Lock, User, Image as ImageIcon } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface AuthFormData {
   email?: string;
   credential?: string;
   password: string;
   username?: string;
+  profileImage?: string;
 }
 
 export default function LandingPage() {
@@ -23,6 +25,7 @@ export default function LandingPage() {
   const [registerUsername, setRegisterUsername] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [registerProfileImage, setRegisterProfileImage] = useState<string | null>(null);
 
   const loginMutation = useMutation({
     mutationFn: async (data: AuthFormData) => {
@@ -66,6 +69,18 @@ export default function LandingPage() {
     loginMutation.mutate({ credential: loginCredential, password: loginPassword });
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setRegisterProfileImage(result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!registerUsername || !registerEmail || !registerPassword) return;
@@ -73,6 +88,7 @@ export default function LandingPage() {
       username: registerUsername,
       email: registerEmail,
       password: registerPassword,
+      profileImage: registerProfileImage || undefined,
     });
   };
 
@@ -268,6 +284,32 @@ export default function LandingPage() {
                           className="pl-10"
                           data-testid="input-register-password"
                         />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <Label htmlFor="register-image">Foto de Perfil (Opcional)</Label>
+                      <div className="flex flex-col gap-3">
+                        {registerProfileImage && (
+                          <div className="flex justify-center">
+                            <Avatar className="h-20 w-20">
+                              <AvatarImage src={registerProfileImage} />
+                              <AvatarFallback>
+                                {registerUsername?.[0]?.toUpperCase() || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
+                        )}
+                        <div className="relative">
+                          <ImageIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="register-image"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="pl-10"
+                            data-testid="input-register-image"
+                          />
+                        </div>
                       </div>
                     </div>
                     <Button 
