@@ -21,7 +21,7 @@ interface BlockchainBalance {
 
 /**
  * Extrai o valor de Portfolio.ready.co (STARKNET)
- * Procura pelo valor no canto superior esquerdo, abaixo do nome do usuário
+ * Busca o MAIOR valor ($) encontrado na página
  */
 async function extractStarknetBalance(page: any, walletName: string): Promise<string | null> {
   console.log(`[STARKNET] Extracting balance for ${walletName}`);
@@ -32,22 +32,22 @@ async function extractStarknetBalance(page: any, walletName: string): Promise<st
     await page.waitForTimeout(2000);
     
     const balance = await page.evaluate(() => {
-      // Procura por padrões de valor (por exemplo: "$123,456.78" ou "123456.78 ETH")
       const pageText = document.body.innerText;
-      const lines = pageText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
       
-      // Procura por linhas que começam com $
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].startsWith("$") && /[\d,]+\.?\d*/.test(lines[i])) {
-          return lines[i];
-        }
-      }
-      
-      // Fallback: procura por qualquer número grande formatado
-      const regex = /\$[\d,]+\.?\d*/g;
+      // Busca todos os valores em formato $X,XXX.XX
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
       const matches = pageText.match(regex);
+      
       if (matches && matches.length > 0) {
-        return matches[0];
+        // Converte para número para comparar
+        const values = matches.map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }));
+        
+        // Retorna o maior valor
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
       }
       
       return null;
@@ -68,7 +68,7 @@ async function extractStarknetBalance(page: any, walletName: string): Promise<st
 
 /**
  * Extrai o valor de Aptoscan.com (APTOS)
- * Procura pelo valor abaixo de "Coin value"
+ * Busca o MAIOR valor ($) encontrado na página
  */
 async function extractAptosBalance(page: any, walletName: string): Promise<string | null> {
   console.log(`[APTOS] Extracting balance for ${walletName}`);
@@ -80,25 +80,21 @@ async function extractAptosBalance(page: any, walletName: string): Promise<strin
     
     const balance = await page.evaluate(() => {
       const pageText = document.body.innerText;
-      const lines = pageText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
       
-      // Procura por "Coin value" ou similar
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].toLowerCase().includes("coin value") || lines[i].toLowerCase().includes("total value")) {
-          // O valor deve estar nas próximas linhas
-          for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-            if (/[\d,]+\.?\d*/.test(lines[j]) || lines[j].startsWith("$")) {
-              return lines[j];
-            }
-          }
-        }
-      }
-      
-      // Fallback: procura por padrões de valor
-      const regex = /\$[\d,]+\.?\d*|[\d,]+\.?\d*\s*(APTOS|APT)?/g;
+      // Busca todos os valores em formato $X,XXX.XX ou XYZ APT
+      const regex = /\$[\d,]+(?:\.\d{2})?|[\d,]+(?:\.\d+)?\s*APT/gi;
       const matches = pageText.match(regex);
+      
       if (matches && matches.length > 0) {
-        return matches[0];
+        // Converte para número para comparar
+        const values = matches.map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,\sAPT]/gi, ''))
+        }));
+        
+        // Retorna o maior valor
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
       }
       
       return null;
@@ -119,7 +115,7 @@ async function extractAptosBalance(page: any, walletName: string): Promise<strin
 
 /**
  * Extrai o valor de Seiscan.io (SEI)
- * Procura pelo valor abaixo de "SEI Value"
+ * Busca o MAIOR valor ($) encontrado na página
  */
 async function extractSeiBalance(page: any, walletName: string): Promise<string | null> {
   console.log(`[SEI] Extracting balance for ${walletName}`);
@@ -131,25 +127,21 @@ async function extractSeiBalance(page: any, walletName: string): Promise<string 
     
     const balance = await page.evaluate(() => {
       const pageText = document.body.innerText;
-      const lines = pageText.split("\n").map((l: string) => l.trim()).filter((l: string) => l.length > 0);
       
-      // Procura por "SEI Value" ou "SEI Balance"
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].toLowerCase().includes("sei value") || lines[i].toLowerCase().includes("sei balance")) {
-          // O valor deve estar nas próximas linhas
-          for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-            if (/[\d,]+\.?\d*/.test(lines[j]) || lines[j].startsWith("$")) {
-              return lines[j];
-            }
-          }
-        }
-      }
-      
-      // Fallback: procura por padrões de valor SEI
-      const regex = /\$[\d,]+\.?\d*|[\d,]+\.?\d*\s*(SEI)?/g;
+      // Busca todos os valores em formato $X,XXX.XX ou XYZ SEI
+      const regex = /\$[\d,]+(?:\.\d{2})?|[\d,]+(?:\.\d+)?\s*SEI/gi;
       const matches = pageText.match(regex);
+      
       if (matches && matches.length > 0) {
-        return matches[0];
+        // Converte para número para comparar
+        const values = matches.map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,\sSEI]/gi, ''))
+        }));
+        
+        // Retorna o maior valor
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
       }
       
       return null;
@@ -177,53 +169,59 @@ export async function fetchBlockchainBalance(config: BlockchainWalletConfig, att
   try {
     console.log(`[${config.blockchain.toUpperCase()}] [Attempt ${attempt}/${maxAttempts}] Fetching balance for ${config.name}`);
     
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    
-    const page = await browser.newPage();
-    page.setDefaultNavigationTimeout(30000);
-    page.setDefaultTimeout(30000);
-    
-    // Navegar para a página
-    await page.goto(config.link, { waitUntil: "networkidle2" });
-    
-    let balance: string | null = null;
-    
-    // Extrair o valor dependendo do blockchain
-    switch (config.blockchain) {
-      case "starknet":
-        balance = await extractStarknetBalance(page, config.name);
-        break;
-      case "aptos":
-        balance = await extractAptosBalance(page, config.name);
-        break;
-      case "sei":
-        balance = await extractSeiBalance(page, config.name);
-        break;
+    let browser: any = null;
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+      });
+      
+      const page = await browser.newPage();
+      page.setDefaultNavigationTimeout(30000);
+      page.setDefaultTimeout(30000);
+      
+      // Navegar para a página
+      await page.goto(config.link, { waitUntil: "networkidle2", timeout: 30000 });
+      
+      let balance: string | null = null;
+      
+      // Extrair o valor dependendo do blockchain
+      switch (config.blockchain) {
+        case "starknet":
+          balance = await extractStarknetBalance(page, config.name);
+          break;
+        case "aptos":
+          balance = await extractAptosBalance(page, config.name);
+          break;
+        case "sei":
+          balance = await extractSeiBalance(page, config.name);
+          break;
+      }
+      
+      await browser.close();
+      
+      if (balance) {
+        return {
+          name: config.name,
+          link: config.link,
+          balance,
+          lastUpdated: new Date(),
+          status: "success",
+        };
+      }
+      
+      // Se falhou e não está na última tentativa, tentar novamente
+      if (attempt < maxAttempts) {
+        console.log(`[${config.blockchain.toUpperCase()}] Retrying (${attempt + 1}/${maxAttempts})...`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        return fetchBlockchainBalance(config, attempt + 1);
+      }
+      
+      throw new Error("Could not extract balance from page");
+    } catch (puppeteerError) {
+      if (browser) await browser.close().catch(() => {});
+      throw puppeteerError;
     }
-    
-    await browser.close();
-    
-    if (balance) {
-      return {
-        name: config.name,
-        link: config.link,
-        balance,
-        lastUpdated: new Date(),
-        status: "success",
-      };
-    }
-    
-    // Se falhou e não está na última tentativa, tentar novamente
-    if (attempt < maxAttempts) {
-      console.log(`[${config.blockchain.toUpperCase()}] Retrying (${attempt + 1}/${maxAttempts})...`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      return fetchBlockchainBalance(config, attempt + 1);
-    }
-    
-    throw new Error("Could not extract balance from page");
   } catch (error) {
     console.error(`[${config.blockchain.toUpperCase()}] Error fetching balance for ${config.name}:`, error);
     

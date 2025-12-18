@@ -13,7 +13,30 @@ export interface ScraperResult {
 }
 
 // ============================================================================
-// EVM / DEBANK SCRAPER
+// HELPER: Extract largest dollar value from text (opportunistic strategy)
+// ============================================================================
+
+function extractLargestDollarValue(text: string): string | null {
+  const regex = /\$[\d,]+(?:\.\d{2})?/g;
+  const matches = text.match(regex);
+  
+  if (!matches || matches.length === 0) return null;
+  
+  const values = matches
+    .map(m => ({
+      str: m,
+      num: parseFloat(m.replace(/[$,]/g, ''))
+    }))
+    .filter(v => v.num >= 10); // Ignore values < $10
+  
+  if (values.length === 0) return null;
+  
+  const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+  return maxValue.str;
+}
+
+// ============================================================================
+// EVM / DEBANK SCRAPER (KEEP AS IS - DO NOT MODIFY)
 // ============================================================================
 
 async function extractDebankNetWorthEVM(page: Page): Promise<string | null> {
@@ -129,7 +152,7 @@ export async function scrapeDebankEVM(
 }
 
 // ============================================================================
-// SOLANA / JUPITER SCRAPER (Network interception)
+// SOLANA / JUPITER SCRAPER (Opportunistic - Largest Value Strategy)
 // ============================================================================
 
 export async function scrapeJupiterSolana(
@@ -142,92 +165,46 @@ export async function scrapeJupiterSolana(
     page.close().catch(() => {});
   }, timeoutMs);
   
-  let netWorthValue: string | null = null;
-  
   try {
-    console.log('[Jupiter] Starting Solana scraper with network interception');
+    console.log('[Jupiter] Starting Solana scraper (opportunistic)');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    // Intercept network responses to find portfolio JSON
-    page.on('response', async (response) => {
-      try {
-        const url = response.url();
-        const contentType = response.headers()['content-type'] || '';
-        
-        // Look for portfolio API responses
-        if (url.includes('portfolio') || url.includes('api') || url.includes('jup')) {
-          if (contentType.includes('json')) {
-            const data = await response.json();
-            
-            // Extract Net Worth from various possible JSON structures
-            if (data.netWorth || data.net_worth || data.totalValue || data.total_value) {
-              const value = data.netWorth || data.net_worth || data.totalValue || data.total_value;
-              if (typeof value === 'number' && value > 0) {
-                netWorthValue = `$${value.toFixed(2)}`;
-                console.log('[Jupiter] Found Net Worth in API response: ' + netWorthValue);
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // Ignore errors parsing responses
-      }
-    });
-    
-    // Navigate to portfolio
+    // Navigate and wait for initial load
     await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 40000 }).catch(e => 
       console.log('[Jupiter] Navigation warning: ' + e.message)
     );
     
-    // Wait for value to be intercepted
-    let attempts = 0;
-    while (!netWorthValue && attempts < 5) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      attempts++;
+    // Quick wait for initial rendering
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Extract ALL text and find largest value
+    const value = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
+      const matches = fullText.match(regex);
+      
+      if (!matches || matches.length === 0) return null;
+      
+      const values = matches
+        .map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }))
+        .filter(v => v.num >= 10); // Ignore < $10
+      
+      if (values.length === 0) return null;
+      
+      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+      return maxValue.str;
+    });
+    
+    if (value) {
+      console.log('[Jupiter] Extracted largest value: ' + value);
+      return { value, success: true, platform: 'jupiter' };
     }
     
-    // Fallback to DOM extraction if API didn't work
-    if (!netWorthValue) {
-      console.log('[Jupiter] API interception didn\'t find value, trying DOM');
-      netWorthValue = await page.evaluate(() => {
-        const fullText = document.body.innerText;
-        const lines = fullText.split('\n');
-        
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (/\bnet\s+worth\b/i.test(line)) {
-            if (/\bpnl\b|\bclaimable\b|−|^\-/i.test(line)) continue;
-            
-            let valueMatch = line.match(/\$\s*([\d,.]+)/);
-            if (!valueMatch) {
-              for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
-                const nextLine = lines[j].trim();
-                if (nextLine && !/\bpnl\b|\bclaimable\b|−|^\-/i.test(nextLine)) {
-                  valueMatch = nextLine.match(/\$\s*([\d,.]+)/);
-                  if (valueMatch) break;
-                }
-              }
-            }
-            
-            if (valueMatch) {
-              const value = valueMatch[1];
-              if (value !== '0.00' && value !== '0' && parseFloat(value.replace(/,/g, '')) > 0) {
-                return `$${value}`;
-              }
-            }
-          }
-        }
-        
-        return null;
-      });
-    }
-    
-    if (netWorthValue) {
-      return { value: netWorthValue, success: true, platform: 'jupiter' };
-    }
-    
-    return { value: null, success: false, platform: 'jupiter', error: 'Net Worth not found' };
+    return { value: null, success: false, platform: 'jupiter', error: 'No portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Jupiter] Error:', msg);
@@ -239,7 +216,7 @@ export async function scrapeJupiterSolana(
 }
 
 // ============================================================================
-// STARKNET / READY SCRAPER
+// STARKNET / READY SCRAPER (Opportunistic - Largest Value Strategy)
 // ============================================================================
 
 export async function scrapeReadyStarknet(
@@ -253,44 +230,45 @@ export async function scrapeReadyStarknet(
   }, timeoutMs);
   
   try {
-    console.log('[Ready] Starting Starknet scraper');
+    console.log('[Ready] Starting Starknet scraper (opportunistic)');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
+    // Navigate and wait for initial load
     await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 40000 }).catch(e => 
       console.log('[Ready] Navigation warning: ' + e.message)
     );
     
-    // Wait for JS rendering
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // Quick wait for rendering
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
+    // Extract ALL text and find largest value
     const value = await page.evaluate(() => {
       const fullText = document.body.innerText;
-      const lines = fullText.split('\n');
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
+      const matches = fullText.match(regex);
       
-      // Look for "Total Portfolio Value" or similar
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (/total.*portfolio|portfolio.*value/i.test(line)) {
-          // Check next few lines for the value
-          for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-            const nextLine = lines[j].trim();
-            const match = nextLine.match(/\$?\s*([\d,]+\.?\d*)/);
-            if (match && !/%/.test(nextLine) && !nextLine.toLowerCase().includes('change')) {
-              return `$${match[1]}`;
-            }
-          }
-        }
-      }
+      if (!matches || matches.length === 0) return null;
       
-      return null;
+      const values = matches
+        .map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }))
+        .filter(v => v.num >= 10); // Ignore < $10
+      
+      if (values.length === 0) return null;
+      
+      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+      return maxValue.str;
     });
     
     if (value) {
+      console.log('[Ready] Extracted largest value: ' + value);
       return { value, success: true, platform: 'ready' };
     }
     
-    return { value: null, success: false, platform: 'ready', error: 'Portfolio value not found' };
+    return { value: null, success: false, platform: 'ready', error: 'No portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Ready] Error:', msg);
@@ -302,92 +280,130 @@ export async function scrapeReadyStarknet(
 }
 
 // ============================================================================
-// APTOS / APTOSCAN SCRAPER (Prefer API)
+// APTOS / APTOSCAN SCRAPER (Opportunistic - Largest Value Strategy)
 // ============================================================================
 
 export async function scrapeAptoscanAptos(
+  browser: Browser,
   walletLink: string,
   timeoutMs: number = 30000
 ): Promise<ScraperResult> {
+  const page = await browser.newPage();
+  const timeoutId = setTimeout(() => {
+    page.close().catch(() => {});
+  }, timeoutMs);
+  
   try {
-    console.log('[Aptoscan] Starting Aptos scraper');
+    console.log('[Aptoscan] Starting Aptos scraper (opportunistic)');
     
-    // Extract account address from URL
-    const addressMatch = walletLink.match(/\/account\/([a-zA-Z0-9]+)/);
-    if (!addressMatch) {
-      return { value: null, success: false, platform: 'aptoscan', error: 'Could not extract address' };
-    }
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    const address = addressMatch[1];
+    // Navigate and wait for initial load
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 25000 }).catch(e => 
+      console.log('[Aptoscan] Navigation warning: ' + e.message)
+    );
     
-    // Try API first
-    try {
-      console.log('[Aptoscan] Trying API endpoint');
-      const response = await fetch(`https://api.aptoscan.com/v1/account/${address}`, {
-        signal: AbortSignal.timeout(timeoutMs)
-      });
+    // Quick wait for rendering
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Extract ALL text and find largest value
+    const value = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
+      const matches = fullText.match(regex);
       
-      if (response.ok) {
-        const data = await response.json() as any;
-        const balance = data.balance || data.total_balance || 0;
-        if (balance > 0) {
-          const formatted = `$${(balance / 1e8).toFixed(2)}`; // APT has 8 decimals
-          return { value: formatted, success: true, platform: 'aptoscan' };
-        }
-      }
-    } catch (apiError) {
-      console.log('[Aptoscan] API failed: ' + (apiError instanceof Error ? apiError.message : 'Unknown'));
+      if (!matches || matches.length === 0) return null;
+      
+      const values = matches
+        .map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }))
+        .filter(v => v.num >= 10); // Ignore < $10
+      
+      if (values.length === 0) return null;
+      
+      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+      return maxValue.str;
+    });
+    
+    if (value) {
+      console.log('[Aptoscan] Extracted largest value: ' + value);
+      return { value, success: true, platform: 'aptoscan' };
     }
     
-    return { value: null, success: false, platform: 'aptoscan', error: 'API call failed' };
+    return { value: null, success: false, platform: 'aptoscan', error: 'No portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Aptoscan] Error:', msg);
     return { value: null, success: false, platform: 'aptoscan', error: msg };
+  } finally {
+    clearTimeout(timeoutId);
+    await page.close().catch(() => {});
   }
 }
 
 // ============================================================================
-// SEI / SEISCAN SCRAPER (Prefer API)
+// SEI / SEISCAN SCRAPER (Opportunistic - Largest Value Strategy)
 // ============================================================================
 
 export async function scrapeSeiscanSei(
+  browser: Browser,
   walletLink: string,
   timeoutMs: number = 30000
 ): Promise<ScraperResult> {
+  const page = await browser.newPage();
+  const timeoutId = setTimeout(() => {
+    page.close().catch(() => {});
+  }, timeoutMs);
+  
   try {
-    console.log('[Seiscan] Starting Sei scraper');
+    console.log('[Seiscan] Starting Sei scraper (opportunistic)');
     
-    // Extract account address from URL
-    const addressMatch = walletLink.match(/\/address\/([a-zA-Z0-9]+)/);
-    if (!addressMatch) {
-      return { value: null, success: false, platform: 'seiscan', error: 'Could not extract address' };
-    }
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    const address = addressMatch[1];
+    // Navigate and wait for initial load
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 25000 }).catch(e => 
+      console.log('[Seiscan] Navigation warning: ' + e.message)
+    );
     
-    // Try API first
-    try {
-      console.log('[Seiscan] Trying API endpoint');
-      const response = await fetch(`https://api.seiscan.app/api/v1/account/${address}`, {
-        signal: AbortSignal.timeout(timeoutMs)
-      });
+    // Quick wait for rendering
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Extract ALL text and find largest value
+    const value = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
+      const matches = fullText.match(regex);
       
-      if (response.ok) {
-        const data = await response.json() as any;
-        const balance = data.balance || data.total_balance || 0;
-        if (balance > 0) {
-          const formatted = `$${(balance / 1e6).toFixed(2)}`; // SEI has 6 decimals
-          return { value: formatted, success: true, platform: 'seiscan' };
-        }
-      }
-    } catch (apiError) {
-      console.log('[Seiscan] API failed: ' + (apiError instanceof Error ? apiError.message : 'Unknown'));
+      if (!matches || matches.length === 0) return null;
+      
+      const values = matches
+        .map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }))
+        .filter(v => v.num >= 10); // Ignore < $10
+      
+      if (values.length === 0) return null;
+      
+      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+      return maxValue.str;
+    });
+    
+    if (value) {
+      console.log('[Seiscan] Extracted largest value: ' + value);
+      return { value, success: true, platform: 'seiscan' };
     }
     
-    return { value: null, success: false, platform: 'seiscan', error: 'API call failed' };
+    return { value: null, success: false, platform: 'seiscan', error: 'No portfolio value found' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Seiscan] Error:', msg);
     return { value: null, success: false, platform: 'seiscan', error: msg };
+  } finally {
+    clearTimeout(timeoutId);
+    await page.close().catch(() => {});
   }
 }
 
@@ -419,11 +435,13 @@ export async function selectAndScrapePlatform(
     }
     
     if (walletLink.includes('aptoscan.com')) {
-      return await scrapeAptoscanAptos(walletLink, 30000);
+      if (!browser) return { value: null, success: false, platform: 'aptoscan', error: 'Browser not available' };
+      return await scrapeAptoscanAptos(browser, walletLink, 30000);
     }
     
     if (walletLink.includes('seiscan.io')) {
-      return await scrapeSeiscanSei(walletLink, 30000);
+      if (!browser) return { value: null, success: false, platform: 'seiscan', error: 'Browser not available' };
+      return await scrapeSeiscanSei(browser, walletLink, 30000);
     }
     
     return { value: null, success: false, platform: 'unknown', error: 'Platform not supported' };

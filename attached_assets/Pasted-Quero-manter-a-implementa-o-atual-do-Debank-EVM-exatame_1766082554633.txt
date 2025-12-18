@@ -1,0 +1,83 @@
+Quero manter a implementação atual do Debank (EVM) exatamente como está, pois já está funcionando corretamente e captura o valor correto de Patrimônio Líquido.
+
+Para TODAS AS OUTRAS PLATAFORMAS, quero mudar a estratégia de scraping para o modo oportunista que funcionava antes, abandonando completamente a lógica semântica e de API.
+
+🔒 REGRA ABSOLUTA
+
+Debank (EVM):
+
+❌ NÃO alterar nada
+
+❌ NÃO refatorar
+
+❌ NÃO “melhorar”
+
+✅ Manter exatamente a lógica atual
+
+🔁 TODAS AS OUTRAS PLATAFORMAS (Solana / Jupiter, Ready, Aptoscan, Seiscan)
+
+Quero usar EXCLUSIVAMENTE DOM scraping oportunista com Puppeteer, com as seguintes regras:
+
+1️⃣ Estratégia “MAIOR VALOR MONETÁRIO”
+
+Após page.goto(), coletar todos os textos do DOM que contenham valores monetários ($, USD, US$).
+
+Converter todos os valores encontrados para número.
+
+Selecionar o MAIOR valor positivo encontrado no DOM.
+
+Esse valor deve ser tratado como o saldo principal do portfólio.
+
+2️⃣ Timing semelhante ao que funcionava antes
+
+Executar a leitura logo após o carregamento inicial da página.
+
+Não aguardar labels como “Net Worth”, “Total Portfolio” ou equivalentes.
+
+Não exigir estabilização longa do valor.
+
+3️⃣ Filtros mínimos de segurança
+
+Ignorar valores negativos.
+
+Ignorar valores muito pequenos (ex: < $10).
+
+Ignorar valores associados explicitamente a “PnL”, “Fees”, “Claimable”, quando detectável no texto adjacente.
+
+4️⃣ Saída garantida (anti-loading infinito)
+
+Assim que um valor válido for encontrado, encerrar imediatamente o scraping da wallet.
+
+Timeout máximo de 20 segundos por wallet.
+
+Nunca deixar a wallet em estado “Loading” indefinidamente.
+
+5️⃣ Proibição total de API
+
+❌ NÃO usar fetch, axios, interceptação de rede ou chamadas de API.
+
+❌ NÃO tratar essas plataformas como APIs.
+
+✅ Apenas navegação real via Puppeteer + leitura do DOM.
+
+🎯 OBJETIVO FINAL
+
+Recuperar o comportamento funcional que já existia antes.
+
+Priorizar funcionamento prático em vez de perfeição semântica.
+
+Manter Debank estável e confiável.
+
+Evitar regressões e estados de “Indisponível” desnecessários.
+
+🧠 POR QUE ISSO É O PEDIDO CERTO
+
+Mantém Debank intocado (onde DOM funciona bem)
+
+Volta ao método que já provou funcionar nos outros sites
+
+Evita Canvas / API / interceptação problemática
+
+Elimina loading infinito
+
+Simplifica drasticamente a lógica
