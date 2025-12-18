@@ -110,6 +110,15 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
 
     // Try to find the balance text on the page
     const balance = await page.evaluate(() => {
+      // First, try to find DeBank L2 balance specifically
+      const allText = document.body.innerText;
+      
+      // Look for "DeBank L2 balance: $X" pattern (the correct balance)
+      const debanklMatch = allText.match(/DeBank\s+L2\s+balance:\s*\$?([\d,]+\.?\d*)/i);
+      if (debanklMatch) {
+        return debanklMatch[1];
+      }
+      
       // Look for text nodes that contain balance information
       const walker = document.createTreeWalker(
         document.body,
@@ -119,6 +128,9 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
 
       let node;
       const balancePatterns = [
+        /DeBank\s+L2\s+balance:\s*\$?[\d,]+\.?\d*/i,
+        /Total\s+Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
+        /Net\s+Worth\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Total\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Portfolio\s*[:\s]*\$?[\d,]+\.?\d*/i,
         /Balance\s*[:\s]*\$?[\d,]+\.?\d*/i,
@@ -128,7 +140,7 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
         const text = (node as any).textContent.trim();
         for (const pattern of balancePatterns) {
           const match = text.match(pattern);
-          if (match) {
+          if (match && !match[0].toLowerCase().includes('earnings')) {
             // Extract just the number part
             const numMatch = match[0].match(/\$?[\d,]+\.?\d*/);
             if (numMatch) return numMatch[0];
@@ -136,11 +148,23 @@ async function scrapeWalletBalance(browser: Browser, wallet: WalletConfig): Prom
         }
       }
 
-      // Fallback: look for any large number in the page
-      const allText = document.body.innerText;
-      const numberMatches = allText.match(/\$?[\d,]{3,}\.\d{2}/g);
-      if (numberMatches && numberMatches.length > 0) {
-        return numberMatches[0];
+      // Fallback: look for currency-formatted numbers but skip "Earnings"
+      const pageText = document.body.innerText;
+      const lines = pageText.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Skip earnings, profit, and other non-balance values
+        if (/earnings|profit|gain|loss|fee/i.test(line)) continue;
+        
+        const numberMatch = line.match(/\$?([\d,]+\.?\d*)/);
+        if (numberMatch) {
+          const value = numberMatch[1];
+          // Look for reasonable balance amounts (not too small like fees, not timestamps)
+          const numValue = parseFloat(value.replace(/,/g, ''));
+          if (numValue > 10) {
+            return numberMatch[1];
+          }
+        }
       }
 
       return null;
