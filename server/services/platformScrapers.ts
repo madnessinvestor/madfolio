@@ -223,11 +223,12 @@ async function scrapeJupiterPortfolioNetWorth(
           // Check the next few lines for the dollar value
           for (let j = i; j < Math.min(i + 5, lines.length); j++) {
             const line = lines[j];
-            // Look for pattern like $X.XXX,XX (European format) or $X,XXX.XX (US format)
-            const match = line.match(/\$\s*[\d.,]+/);
+            // Extract ONLY the first monetary value in dollars (European format: $X.XXX,XX)
+            // Regex: $ + optional spaces + digits with optional thousand separators (.) + comma + 2 decimals
+            const match = line.match(/\$\s*\d+(?:\.\d{3})*,\d{2}/);
             if (match) {
-              const rawVal = match[0];
-              console.log('[JupiterPortfolio] Extracted raw value: ' + rawVal);
+              const rawVal = match[0].trim();
+              console.log('[JupiterPortfolio] Extracted raw monetary value: ' + rawVal);
               return rawVal;
             }
           }
