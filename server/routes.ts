@@ -688,5 +688,31 @@ export async function registerRoutes(
     }
   });
 
+  // Sync endpoint - confirms all data is saved to database
+  app.post("/api/sync", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    try {
+      // All data is already auto-saved to PostgreSQL
+      // This endpoint confirms the sync and returns user stats
+      const assets = await storage.getAssets(userId);
+      const wallets = await storage.getWallets(userId);
+      const snapshots = await storage.getSnapshots();
+      
+      res.json({
+        success: true,
+        message: "Dados sincronizados com sucesso",
+        stats: {
+          assets: assets.length,
+          wallets: wallets.length,
+          snapshots: snapshots.length,
+          syncedAt: new Date().toISOString(),
+        }
+      });
+    } catch (error) {
+      console.error("Sync error:", error);
+      res.status(500).json({ error: "Failed to sync data" });
+    }
+  });
+
   return httpServer;
 }

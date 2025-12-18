@@ -11,7 +11,10 @@ import { CurrencySwitcher, type DisplayCurrency } from "@/components/CurrencySwi
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, Save, Check } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface CurrencyContextType {
   displayCurrency: DisplayCurrency;
@@ -56,7 +59,31 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>("BRL");
+  const [isSaved, setIsSaved] = useState(false);
+  
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/sync");
+      return true;
+    },
+    onSuccess: () => {
+      setIsSaved(true);
+      toast({
+        title: "Dados salvos com sucesso!",
+        description: "Todas as suas alterações foram sincronizadas no servidor.",
+      });
+      setTimeout(() => setIsSaved(false), 3000);
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao salvar",
+        description: "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    },
+  });
   
   const style = {
     "--sidebar-width": "16rem",
@@ -76,6 +103,25 @@ function AuthenticatedApp() {
                 <ThemeToggle />
                 {user && (
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => saveMutation.mutate()}
+                      disabled={saveMutation.isPending}
+                      data-testid="button-save-changes"
+                      className="gap-2"
+                    >
+                      {saveMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : isSaved ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {isSaved ? "Salvo!" : "Salvar"}
+                      </span>
+                    </Button>
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={user.profileImageUrl || undefined} />
                       <AvatarFallback>
