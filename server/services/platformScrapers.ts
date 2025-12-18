@@ -152,6 +152,28 @@ export async function scrapeDebankEVM(
 }
 
 // ============================================================================
+// HELPER: Normalize European format currency for Jupiter ($1.911,36 → 1911.36)
+// ============================================================================
+
+function normalizeJupiterValue(rawValue: string): string {
+  console.log('[JupiterPortfolio] Raw value before normalization: ' + rawValue);
+  
+  // Remove $ and whitespace
+  let normalized = rawValue.replace(/[\$\s]/g, '');
+  console.log('[JupiterPortfolio] After removing $: ' + normalized);
+  
+  // Remove dots (European thousand separator)
+  normalized = normalized.replace(/\./g, '');
+  console.log('[JupiterPortfolio] After removing dots: ' + normalized);
+  
+  // Replace comma with dot (European decimal separator → standard decimal)
+  normalized = normalized.replace(/,/g, '.');
+  console.log('[JupiterPortfolio] After replacing comma: ' + normalized);
+  
+  return normalized;
+}
+
+// ============================================================================
 // JUPITER PORTFOLIO SCRAPER (jup.ag/portfolio - Net Worth Specific)
 // ============================================================================
 
@@ -189,7 +211,7 @@ async function scrapeJupiterPortfolioNetWorth(
     }
     
     // Extract ONLY the Net Worth value
-    const value = await page.evaluate(() => {
+    const rawValue = await page.evaluate(() => {
       const fullText = document.body.innerText;
       const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       
@@ -201,12 +223,12 @@ async function scrapeJupiterPortfolioNetWorth(
           // Check the next few lines for the dollar value
           for (let j = i; j < Math.min(i + 5, lines.length); j++) {
             const line = lines[j];
-            // Look for pattern like $X,XXX.XX or $X,XXX
-            const match = line.match(/\$\s*([\d,]+(?:\.\d{2})?)/);
+            // Look for pattern like $X.XXX,XX (European format) or $X,XXX.XX (US format)
+            const match = line.match(/\$\s*[\d.,]+/);
             if (match) {
-              const value = '$' + match[1];
-              console.log('[JupiterPortfolio] Extracted Net Worth value: ' + value);
-              return value;
+              const rawVal = match[0];
+              console.log('[JupiterPortfolio] Extracted raw value: ' + rawVal);
+              return rawVal;
             }
           }
         }
@@ -215,8 +237,14 @@ async function scrapeJupiterPortfolioNetWorth(
       return null;
     });
     
-    if (value) {
-      return { value, success: true, platform: 'jupiter' };
+    if (rawValue) {
+      // Normalize European format to standard decimal
+      const normalizedValue = normalizeJupiterValue(rawValue);
+      console.log('[JupiterPortfolio] Normalized value: ' + normalizedValue);
+      
+      // Format with $ for display
+      const formattedValue = '$' + normalizedValue;
+      return { value: formattedValue, success: true, platform: 'jupiter' };
     }
     
     console.log('[JupiterPortfolio] Could not extract Net Worth value from DOM');
