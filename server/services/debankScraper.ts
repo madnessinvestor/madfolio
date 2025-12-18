@@ -218,17 +218,11 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
       const wallet = wallets[i];
       console.log(`[Sequential] Wallet ${i + 1}/${wallets.length}: ${wallet.name}`);
       
-      // Check platform to determine if browser is needed
-      const needsBrowser = wallet.link.includes('debank.com') || 
-                          wallet.link.includes('jup.ag') || 
-                          wallet.link.includes('portfolio.ready.co');
-      
+      // Always provide browser (selectAndScrapePlatform will use it or fallback gracefully)
       const balance = await scrapeWalletWithTimeout(
-        needsBrowser ? browser! : null,
+        browser,
         wallet,
-        wallet.link.includes('debank.com') ? 65000 :
-        wallet.link.includes('jup.ag') ? 50000 :
-        wallet.link.includes('portfolio.ready.co') ? 50000 : 35000
+        wallet.link.includes('debank.com') ? 65000 : 45000
       );
       
       balanceCache.set(wallet.name, balance);

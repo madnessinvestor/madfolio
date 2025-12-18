@@ -408,7 +408,71 @@ export async function scrapeSeiscanSei(
 }
 
 // ============================================================================
-// SELECTOR FUNCTION
+// GENERIC OPPORTUNISTIC SCRAPER (Fallback for all platforms)
+// ============================================================================
+
+export async function scrapeGenericOpportunistic(
+  browser: Browser,
+  walletLink: string,
+  timeoutMs: number = 30000
+): Promise<ScraperResult> {
+  const page = await browser.newPage();
+  const timeoutId = setTimeout(() => {
+    page.close().catch(() => {});
+  }, timeoutMs);
+  
+  try {
+    console.log('[Generic] Starting opportunistic DOM scraper');
+    
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    
+    // Navigate and wait for initial load
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: timeoutMs - 5000 }).catch(e => 
+      console.log('[Generic] Navigation warning: ' + e.message)
+    );
+    
+    // Quick wait for rendering
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Extract ALL text and find largest value
+    const value = await page.evaluate(() => {
+      const fullText = document.body.innerText;
+      const regex = /\$[\d,]+(?:\.\d{2})?/g;
+      const matches = fullText.match(regex);
+      
+      if (!matches || matches.length === 0) return null;
+      
+      const values = matches
+        .map(m => ({
+          str: m,
+          num: parseFloat(m.replace(/[$,]/g, ''))
+        }))
+        .filter(v => v.num >= 10); // Ignore < $10
+      
+      if (values.length === 0) return null;
+      
+      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+      return maxValue.str;
+    });
+    
+    if (value) {
+      console.log('[Generic] Extracted largest value: ' + value);
+      return { value, success: true, platform: 'generic' };
+    }
+    
+    return { value: null, success: false, platform: 'generic', error: 'No portfolio value found' };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Generic] Error:', msg);
+    return { value: null, success: false, platform: 'generic', error: msg };
+  } finally {
+    clearTimeout(timeoutId);
+    await page.close().catch(() => {});
+  }
+}
+
+// ============================================================================
+// SELECTOR FUNCTION (Always returns functional scraper, NEVER null)
 // ============================================================================
 
 export async function selectAndScrapePlatform(
@@ -419,11 +483,15 @@ export async function selectAndScrapePlatform(
   console.log(`[Platform] Selecting scraper for: ${walletName} (${walletLink})`);
   
   try {
+    // ==================== DEBANK (Special case - fixed)
     if (walletLink.includes('debank.com')) {
-      if (!browser) return { value: null, success: false, platform: 'debank', error: 'Browser not available' };
+      if (!browser) {
+        return { value: null, success: false, platform: 'debank', error: 'Browser not available' };
+      }
       return await scrapeDebankEVM(browser, walletLink, 60000);
     }
     
+    // ==================== RECOGNIZED PLATFORMS (with specific timeouts)
     if (walletLink.includes('jup.ag')) {
       if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
       return await scrapeJupiterSolana(browser, walletLink, 45000);
@@ -444,9 +512,16 @@ export async function selectAndScrapePlatform(
       return await scrapeSeiscanSei(browser, walletLink, 30000);
     }
     
-    return { value: null, success: false, platform: 'unknown', error: 'Platform not supported' };
+    // ==================== FALLBACK: Generic opportunistic scraper for ANY other platform
+    console.log(`[Platform] Platform not recognized, using generic opportunistic scraper`);
+    if (!browser) {
+      return { value: null, success: false, platform: 'generic', error: 'Browser not available' };
+    }
+    return await scrapeGenericOpportunistic(browser, walletLink, 30000);
+    
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
-    return { value: null, success: false, platform: 'unknown', error: msg };
+    console.error(`[Platform] Unhandled error:`, msg);
+    return { value: null, success: false, platform: 'generic', error: msg };
   }
 }
