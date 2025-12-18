@@ -68,7 +68,7 @@ const marketLabels: Record<MarketType, string> = {
   crypto_simplified: "Mercado Cripto (Simplificado)",
   fixed_income: "Renda Fixa",
   variable_income: "Renda Variável",
-  variable_income_simplified: "Renda Variável (Simplificada)",
+  variable_income_simplified: "Renda Variável (Simplificado)",
 };
 
 const categoriesByMarket: Record<MarketType, AssetCategory[]> = {
@@ -114,6 +114,9 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
   const [variableIncomeType, setVariableIncomeType] = useState("bolsa_valores");
   const [cryptoValueUSD, setCryptoValueUSD] = useState("");
   const [cryptoValueBRL, setCryptoValueBRL] = useState("");
+  const [walletName, setWalletName] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+  const [network, setNetwork] = useState("");
 
   // Update value form state
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -306,6 +309,9 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
     setVariableIncomeType("bolsa_valores");
     setCryptoValueUSD("");
     setCryptoValueBRL("");
+    setWalletName("");
+    setWalletAddress("");
+    setNetwork("");
   };
 
   const resetUpdateForm = () => {
@@ -379,6 +385,39 @@ export function AddInvestmentDialog({ onAdd, onAddSnapshot, isLoading, initialEd
 
                 {market === "crypto_simplified" ? (
                   <>
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-name">Nome da Carteira</Label>
+                      <Input
+                        id="wallet-name"
+                        placeholder="Ex: Carteira Principal, Coinbase, etc"
+                        value={walletName}
+                        onChange={(e) => setWalletName(e.target.value)}
+                        data-testid="input-wallet-name"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="wallet-address">Wallet</Label>
+                      <Input
+                        id="wallet-address"
+                        placeholder="Ex: 1A1z7agoat42gCkHYQTNexhYixjwQF5ugN"
+                        value={walletAddress}
+                        onChange={(e) => setWalletAddress(e.target.value)}
+                        data-testid="input-wallet-address"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="network">Rede</Label>
+                      <Input
+                        id="network"
+                        placeholder="Ex: Bitcoin, Ethereum, Polygon, etc"
+                        value={network}
+                        onChange={(e) => setNetwork(e.target.value)}
+                        data-testid="input-network"
+                      />
+                    </div>
+
                     <div className="grid gap-2">
                       <Label htmlFor="crypto-value-usd">Valor Total (Dólares)</Label>
                       <Input
