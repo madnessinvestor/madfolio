@@ -75,6 +75,7 @@ export default function RealEstatePage() {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({
         title: "Imóvel adicionado",
         description: "O imóvel foi cadastrado com sucesso.",
@@ -98,6 +99,7 @@ export default function RealEstatePage() {
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({
         title: "Imóvel removido",
         description: "O imóvel foi removido do portfólio.",
@@ -118,7 +120,15 @@ export default function RealEstatePage() {
     type: "real_estate",
   }));
 
-  const handleAddAsset = (asset: Omit<RealEstateAsset, "id">) => {
+  const handleAddAsset = async (asset: Omit<RealEstateAsset, "id">) => {
+    await apiRequest("POST", "/api/activities", {
+      type: "create",
+      category: "asset",
+      assetName: asset.name,
+      assetSymbol: asset.symbol || "PROPERTY",
+      action: `Adicionado imóvel`,
+      details: `Quantidade: 1, Valor Total: R$ ${asset.acquisitionPrice.toFixed(2)}`,
+    }).catch(() => {});
     createAssetMutation.mutate(asset);
   };
 
@@ -132,8 +142,19 @@ export default function RealEstatePage() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (assetToDelete) {
+      const assetToDeleteData = realEstateHoldings.find(h => h.id === assetToDelete.id);
+      if (assetToDeleteData) {
+        await apiRequest("POST", "/api/activities", {
+          type: "delete",
+          category: "asset",
+          assetName: assetToDeleteData.name,
+          assetSymbol: assetToDeleteData.symbol || "PROPERTY",
+          action: `Removido imóvel`,
+          details: `Quantidade: 1, Valor Total: R$ ${assetToDeleteData.value.toFixed(2)}`,
+        }).catch(() => {});
+      }
       deleteAssetMutation.mutate(assetToDelete.id);
     }
     setDeleteDialogOpen(false);

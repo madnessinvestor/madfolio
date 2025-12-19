@@ -63,6 +63,7 @@ export default function CryptoPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({
         title: "Investimento adicionado",
         description: "O investimento foi cadastrado e o preço atual será atualizado automaticamente.",
@@ -86,6 +87,7 @@ export default function CryptoPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({
         title: "Ativo removido",
         description: "O ativo foi removido do portfólio.",
@@ -128,7 +130,16 @@ export default function CryptoPage() {
     },
   });
 
-  const handleAddInvestment = (investment: Omit<Investment, "id" | "currentPrice">) => {
+  const handleAddInvestment = async (investment: Omit<Investment, "id" | "currentPrice">) => {
+    const totalValue = investment.quantity * investment.acquisitionPrice;
+    await apiRequest("POST", "/api/activities", {
+      type: "create",
+      category: "asset",
+      assetName: investment.name,
+      assetSymbol: investment.symbol,
+      action: `Adicionado ${investment.quantity} unidade(s)`,
+      details: `Quantidade: ${investment.quantity}, Valor Total: R$ ${totalValue.toFixed(2)}`,
+    }).catch(() => {});
     createInvestmentMutation.mutate(investment);
     setEditingAssetId(undefined);
   };
@@ -148,8 +159,20 @@ export default function CryptoPage() {
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (assetToDelete) {
+      const assetToDeleteData = cryptoHoldings.find(h => h.id === assetToDelete.id);
+      if (assetToDeleteData) {
+        const totalValue = assetToDeleteData.quantity * assetToDeleteData.currentPrice;
+        await apiRequest("POST", "/api/activities", {
+          type: "delete",
+          category: "asset",
+          assetName: assetToDeleteData.name,
+          assetSymbol: assetToDeleteData.symbol,
+          action: `Removido ${assetToDeleteData.quantity} unidade(s)`,
+          details: `Quantidade: ${assetToDeleteData.quantity}, Valor Total: R$ ${totalValue.toFixed(2)}`,
+        }).catch(() => {});
+      }
       deleteAssetMutation.mutate(assetToDelete.id);
     }
     setDeleteDialogOpen(false);
