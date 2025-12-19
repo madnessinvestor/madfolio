@@ -33,6 +33,7 @@ const monthShortNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago",
 export default function UpdateInvestmentsPage() {
   const { toast } = useToast();
   const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
   const debounceTimerRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   const [selectedYear, setSelectedYear] = useState(currentYear.toString());
@@ -40,6 +41,17 @@ export default function UpdateInvestmentsPage() {
   const [monthUpdates, setMonthUpdates] = useState<Record<string, Record<string, string>>>({});
   const [monthUpdateDates, setMonthUpdateDates] = useState<Record<string, string>>({});
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
+
+  // Generate month sequence starting from current month
+  const getMonthSequence = () => {
+    const sequence = [];
+    for (let i = 0; i < 12; i++) {
+      sequence.push((currentMonth + i) % 12);
+    }
+    return sequence;
+  };
+
+  const monthSequence = getMonthSequence();
 
   const { data: assets = [], isLoading: assetsLoading } = useQuery<Asset[]>({
     queryKey: ["/api/assets"],
@@ -227,10 +239,10 @@ export default function UpdateInvestmentsPage() {
                     <th className="sticky left-0 z-20 bg-muted/50 border-r px-4 py-3 text-left font-semibold min-w-40">
                       Investimento
                     </th>
-                    {Array.from({ length: 12 }).map((_, monthIdx) => (
-                      <th key={monthIdx} className="border-r px-3 py-3 text-center font-semibold min-w-32">
+                    {monthSequence.map((actualMonth, displayIdx) => (
+                      <th key={displayIdx} className="border-r px-3 py-3 text-center font-semibold min-w-32">
                         <div className="flex flex-col gap-1">
-                          <span>{monthShortNames[monthIdx]}</span>
+                          <span>{monthShortNames[actualMonth]}</span>
                           <span className="text-xs font-normal text-muted-foreground">
                             Data da Amortização
                           </span>
@@ -243,19 +255,19 @@ export default function UpdateInvestmentsPage() {
                   {/* Header row with dates */}
                   <tr className="border-b bg-background">
                     <td className="sticky left-0 z-20 bg-background border-r px-4 py-2"></td>
-                    {Array.from({ length: 12 }).map((_, monthIdx) => (
-                      <td key={monthIdx} className="border-r px-3 py-2 text-center">
+                    {monthSequence.map((actualMonth, displayIdx) => (
+                      <td key={displayIdx} className="border-r px-3 py-2 text-center">
                         <input
                           type="date"
-                          value={monthDates[monthIdx] || ""}
+                          value={monthDates[actualMonth] || ""}
                           onChange={(e) => {
                             setMonthDates((prev) => ({
                               ...prev,
-                              [monthIdx]: e.target.value,
+                              [actualMonth]: e.target.value,
                             }));
                           }}
                           className="w-24 px-2 py-1 text-xs border rounded text-center"
-                          data-testid={`input-month-date-${monthIdx}`}
+                          data-testid={`input-month-date-${actualMonth}`}
                         />
                       </td>
                     ))}
@@ -270,23 +282,23 @@ export default function UpdateInvestmentsPage() {
                           <p className="text-xs text-muted-foreground">{asset.name}</p>
                         </div>
                       </td>
-                      {Array.from({ length: 12 }).map((_, monthIdx) => {
-                        const cellKey = `${asset.id}-${monthIdx}`;
+                      {monthSequence.map((actualMonth, displayIdx) => {
+                        const cellKey = `${asset.id}-${actualMonth}`;
                         const isSaving = savingCells.has(cellKey);
-                        const currentValue = getMonthValue(asset.id, monthIdx);
+                        const currentValue = getMonthValue(asset.id, actualMonth);
                         return (
-                          <td key={monthIdx} className="border-r px-3 py-2 text-center">
+                          <td key={displayIdx} className="border-r px-3 py-2 text-center">
                             <input
                               type="text"
-                              value={monthUpdates[monthIdx]?.[asset.id] || ""}
+                              value={monthUpdates[actualMonth]?.[asset.id] || ""}
                               onChange={(e) =>
-                                handleValueChange(asset.id, monthIdx.toString(), e.target.value)
+                                handleValueChange(asset.id, actualMonth.toString(), e.target.value)
                               }
                               placeholder="0,00"
                               className={`w-full px-2 py-1 text-xs border rounded text-right ${
                                 isSaving ? "bg-blue-50 dark:bg-blue-950/30" : ""
                               }`}
-                              data-testid={`input-value-${asset.id}-${monthIdx}`}
+                              data-testid={`input-value-${asset.id}-${actualMonth}`}
                             />
                           </td>
                         );
@@ -299,18 +311,18 @@ export default function UpdateInvestmentsPage() {
                     <td className="sticky left-0 z-10 bg-muted/50 border-r px-4 py-3">
                       <span>Soma dos Investimentos</span>
                     </td>
-                    {Array.from({ length: 12 }).map((_, monthIdx) => {
-                      const currentTotal = getMonthTotalValue(monthIdx);
-                      const previousTotal = monthIdx > 0 ? getMonthTotalValue(monthIdx - 1) : currentTotal;
+                    {monthSequence.map((actualMonth, displayIdx) => {
+                      const currentTotal = getMonthTotalValue(actualMonth);
+                      const previousTotal = displayIdx > 0 ? getMonthTotalValue(monthSequence[displayIdx - 1]) : currentTotal;
                       const evolution = calculateEvolution(currentTotal, previousTotal);
 
                       return (
-                        <td key={monthIdx} className="border-r px-3 py-3 text-center">
+                        <td key={displayIdx} className="border-r px-3 py-3 text-center">
                           <div className="space-y-1">
                             <div className="text-sm font-semibold">
                               {formatCurrencyDisplay(currentTotal)}
                             </div>
-                            {monthIdx > 0 && (
+                            {displayIdx > 0 && (
                               <>
                                 <div
                                   className={`text-xs font-semibold ${
