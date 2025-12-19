@@ -51,9 +51,9 @@ cp .env.example .env.local
 npm run db:push
 ```
 
-5. Crie um usuário admin (opcional):
+5. Crie um usuário admin:
 ```bash
-node scripts/create-admin.js
+npm run seed:admin
 ```
 
 6. Inicie o servidor de desenvolvimento:
@@ -64,6 +64,8 @@ npm run dev
 O aplicativo estará disponível em `http://localhost:5000`
 
 ## Credenciais de Administrador Padrão
+
+Após clonar e rodar `npm run seed:admin`, use:
 
 - **Usuário**: madnessinvestor
 - **Email**: madnessinvestor@yahoo.com

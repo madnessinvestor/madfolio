@@ -62,7 +62,20 @@ Isto criará um usuário com:
 - Email: madnessinvestor@yahoo.com
 - Senha: 123456
 
-### 5. Iniciar o Servidor
+### 5. Criar Usuário Admin
+
+Opção 1: Automático com script
+```bash
+npm run seed:admin
+```
+
+Opção 2: Manual via interface
+1. Inicie o servidor: `npm run dev`
+2. Acesse `http://localhost:5000`
+3. Clique em "Criar Conta"
+4. Crie uma nova conta
+
+### 6. Iniciar o Servidor
 
 ```bash
 npm run dev
