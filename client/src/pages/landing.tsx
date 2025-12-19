@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DatabaseIndicator } from "@/components/DatabaseIndicator";
 
 interface AuthFormData {
   email?: string;
@@ -162,6 +163,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-6">
+      <div className="absolute top-4 right-4">
+        <DatabaseIndicator />
+      </div>
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
