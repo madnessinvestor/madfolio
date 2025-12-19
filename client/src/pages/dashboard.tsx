@@ -244,60 +244,16 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {historyLoading ? (
-            <Skeleton className="h-96 rounded-lg" />
-          ) : performanceData.length > 0 ? (
-            <PerformanceChart data={performanceData} />
-          ) : (
-            <div className="h-96 rounded-lg border flex items-center justify-center text-muted-foreground">
-              Adicione lançamentos para ver o gráfico de evolução
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-1">
-          {historyLoading ? (
-            <Skeleton className="h-96 rounded-lg" />
-          ) : (
-            <div className="space-y-3">
-              <div className="bg-card border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">Portfólio Inicial</p>
-                <p className="text-2xl font-bold">{format(initialPortfolioValue)}</p>
-              </div>
-
-              <div className="bg-card border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">Portfólio Atual</p>
-                <p className="text-2xl font-bold">{format(currentPortfolioValue)}</p>
-              </div>
-
-              <div className={`border rounded-lg p-4 ${
-                isVariationPositive 
-                  ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900" 
-                  : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900"
-              }`}>
-                <p className="text-sm text-muted-foreground mb-2">Variação do Portfólio</p>
-                <div className="space-y-1">
-                  <p className={`text-2xl font-bold ${
-                    isVariationPositive 
-                      ? "text-green-600 dark:text-green-400" 
-                      : "text-red-600 dark:text-red-400"
-                  }`}>
-                    {isVariationPositive ? "+" : ""}{format(portfolioVariation)}
-                  </p>
-                  <p className={`text-sm font-semibold ${
-                    isVariationPositive 
-                      ? "text-green-600 dark:text-green-400" 
-                      : "text-red-600 dark:text-red-400"
-                  }`}>
-                    {isVariationPositive ? "+" : ""}{portfolioVariationPercent.toFixed(2)}%
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <div>
+        {historyLoading ? (
+          <Skeleton className="h-96 rounded-lg" />
+        ) : performanceData.length > 0 ? (
+          <PerformanceChart data={performanceData} />
+        ) : (
+          <div className="h-96 rounded-lg border flex items-center justify-center text-muted-foreground">
+            Adicione lançamentos para ver o gráfico de evolução
+          </div>
+        )}
       </div>
 
       <ExposureCard 
