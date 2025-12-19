@@ -3,6 +3,7 @@ import { HoldingsTable, type Holding } from "@/components/dashboard/HoldingsTabl
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PortfolioChart } from "@/components/dashboard/PortfolioChart";
 import { AddRealEstateDialog, type RealEstateAsset } from "@/components/dashboard/AddRealEstateDialog";
+import { EditInvestmentDialog } from "@/components/dashboard/EditInvestmentDialog";
 import { Building2, TrendingUp, Home } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -41,6 +42,8 @@ export default function RealEstatePage() {
   const { toast } = useToast();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [editingAssetId, setEditingAssetId] = useState<string | undefined>(undefined);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: assets = [], isLoading: assetsLoading } = useQuery<RealEstateAsset[]>({
     queryKey: ["/api/assets", "real_estate"],
@@ -113,10 +116,8 @@ export default function RealEstatePage() {
   };
 
   const handleEdit = (holding: Holding) => {
-    toast({
-      title: "Editar imóvel",
-      description: `Funcionalidade de edição para ${holding.name} em desenvolvimento.`,
-    });
+    setEditingAssetId(holding.id);
+    setEditDialogOpen(true);
   };
 
   const handleDelete = (holding: Holding) => {
@@ -223,6 +224,17 @@ export default function RealEstatePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {editingAssetId && (
+        <EditInvestmentDialog
+          assetId={editingAssetId}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setEditingAssetId(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }
