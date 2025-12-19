@@ -20,6 +20,7 @@ import {
   History,
   FileText,
   Wallet,
+  RefreshCw,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -63,6 +64,11 @@ const menuItems = [
     title: "Wallet Tracker",
     url: "/debank",
     icon: Wallet,
+  },
+  {
+    title: "Atualizar Investimentos",
+    url: "/update-investments",
+    icon: RefreshCw,
   },
 ];
 

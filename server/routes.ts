@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertAssetSchema, insertSnapshotSchema } from "@shared/schema";
 import { z } from "zod";
 import { isAuthenticated } from "./replit_integrations/auth";
-import { fetchAssetPrice, updateAssetPrice, startPriceUpdater } from "./services/pricing";
+import { fetchAssetPrice, updateAssetPrice, startPriceUpdater, fetchHistoricalAssetPrice } from "./services/pricing";
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
 import { fetchWalletBalance } from "./services/walletBalance";
 import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets, forceRefreshWallet, initializeWallet } from "./services/debankScraper";
@@ -279,6 +279,50 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating investment:", error);
       res.status(500).json({ error: "Failed to update investment" });
+    }
+  });
+
+  app.post("/api/investments/:id/update-historical", isAuthenticated, async (req: any, res) => {
+    try {
+      const asset = await storage.getAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: "Asset not found" });
+      }
+
+      const { updateDate, quantity } = req.body;
+      if (!updateDate) {
+        return res.status(400).json({ error: "updateDate is required" });
+      }
+
+      // Don't fetch historical price for stable assets
+      if (asset.market === "fixed_income" || asset.market === "real_estate") {
+        return res.status(400).json({ error: "Cannot update historical price for stable assets" });
+      }
+
+      // Fetch historical price for the specified date
+      const historicalPrice = await fetchHistoricalAssetPrice(asset.symbol, asset.market, updateDate);
+      if (historicalPrice === null) {
+        return res.status(400).json({ error: "Could not fetch historical price for this date. Available for crypto assets only." });
+      }
+
+      // Calculate total value with historical price
+      const assetQuantity = quantity || asset.quantity || 1;
+      const totalValue = await convertToBRL(assetQuantity * historicalPrice, asset.currency);
+
+      // Create snapshot with historical data
+      const snapshot = await storage.createSnapshot({
+        assetId: req.params.id,
+        value: totalValue,
+        amount: assetQuantity,
+        unitPrice: historicalPrice,
+        date: updateDate,
+        notes: `Atualização histórica - ${historicalPrice.toFixed(2)} BRL por unidade`
+      });
+
+      res.status(201).json(snapshot);
+    } catch (error) {
+      console.error("Error updating historical investment:", error);
+      res.status(500).json({ error: "Failed to update historical investment" });
     }
   });
 

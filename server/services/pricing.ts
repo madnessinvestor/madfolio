@@ -202,3 +202,49 @@ export function stopPriceUpdater(): void {
     priceUpdateInterval = null;
   }
 }
+
+export async function fetchHistoricalCryptoPrice(symbol: string, date: string): Promise<number | null> {
+  try {
+    const coinId = CRYPTO_SYMBOL_MAP[symbol.toUpperCase()];
+    if (!coinId) return null;
+
+    // CoinGecko historical date format: dd-mm-yyyy
+    const dateObj = new Date(date);
+    const day = dateObj.getDate().toString().padStart(2, '0');
+    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const year = dateObj.getFullYear();
+    const historyDate = `${day}-${month}-${year}`;
+
+    const url = `${COINGECKO_API}/coins/${coinId}/history?date=${historyDate}&localization=false`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const price = data?.market_data?.current_price?.brl;
+    return price || null;
+  } catch (error) {
+    console.error(`Error fetching historical crypto price for ${symbol} on ${date}:`, error);
+    return null;
+  }
+}
+
+export async function fetchHistoricalStockPrice(symbol: string, date: string): Promise<number | null> {
+  try {
+    const upperSymbol = symbol.toUpperCase();
+    // BRAPI doesn't have good historical data, so return null for now
+    // In production, you'd integrate with another API like Alpha Vantage or Yahoo Finance
+    return null;
+  } catch (error) {
+    console.error(`Error fetching historical stock price for ${symbol} on ${date}:`, error);
+    return null;
+  }
+}
+
+export async function fetchHistoricalAssetPrice(symbol: string, market: string, date: string): Promise<number | null> {
+  if (market === "crypto") {
+    return fetchHistoricalCryptoPrice(symbol, date);
+  } else if (market === "variable_income" || market === "traditional") {
+    return fetchHistoricalStockPrice(symbol, date);
+  }
+  return null;
+}
