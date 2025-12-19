@@ -41,6 +41,7 @@ interface HistoryPoint {
   year: number;
   value: number;
   variation: number;
+  variationPercent: number;
 }
 
 export default function Dashboard() {
@@ -53,9 +54,39 @@ export default function Dashboard() {
     queryKey: ["/api/portfolio/summary"],
   });
 
-  const { data: history = [], isLoading: historyLoading } = useQuery<HistoryPoint[]>({
+  const { data: history = [], isLoading: historyLoading } = useQuery<any[]>({
     queryKey: ["/api/portfolio/history"],
   });
+
+  // Calculate variations for history
+  const historyWithVariations: HistoryPoint[] = [...history]
+    .sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateA - dateB;
+    })
+    .map((point, index, array) => {
+      const prevPoint = array[index - 1];
+      const variation = prevPoint ? point.totalValue - prevPoint.totalValue : 0;
+      const variationPercent = prevPoint && prevPoint.totalValue !== 0 
+        ? (variation / prevPoint.totalValue) * 100 
+        : 0;
+      
+      return {
+        month: point.month.toString(),
+        year: point.year,
+        value: point.totalValue,
+        variation,
+        variationPercent
+      };
+    });
+
+  const performanceData = historyWithVariations.map((h) => ({
+    month: `${h.month}/${h.year.toString().slice(-2)}`,
+    value: h.value,
+    variation: h.variation,
+    variationPercent: h.variationPercent,
+  }));
 
   const createInvestmentMutation = useMutation({
     mutationFn: async (investment: Omit<Investment, "id" | "currentPrice">) => {
@@ -130,11 +161,6 @@ export default function Dashboard() {
     name,
     value,
     color: `hsl(var(--chart-${(index % 5) + 1}))`,
-  }));
-
-  const performanceData = history.map((h) => ({
-    month: h.month,
-    value: h.value,
   }));
 
   const isLoading = summaryLoading || historyLoading;

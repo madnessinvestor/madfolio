@@ -16,6 +16,7 @@ interface PerformanceDataPoint {
   month: string;
   value: number;
   variation?: number;
+  variationPercent?: number;
 }
 
 interface PerformanceChartProps {
@@ -32,6 +33,29 @@ export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: 
 
   const formatTooltipValue = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      return (
+        <div className="bg-popover border border-border p-3 rounded-lg shadow-sm">
+          <p className="font-semibold text-foreground mb-1">{label}</p>
+          <p className="text-sm text-foreground">
+            Patrimônio: <span className="font-medium">{formatTooltipValue(dataPoint.value)}</span>
+          </p>
+          {dataPoint.variation !== undefined && (
+            <div className="mt-1 pt-1 border-t border-border">
+              <p className={`text-xs flex items-center gap-1 ${dataPoint.variation >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {dataPoint.variation >= 0 ? '+' : ''}{formatTooltipValue(dataPoint.variation)}
+                ({dataPoint.variationPercent?.toFixed(2)}%)
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <Card>
@@ -63,15 +87,7 @@ export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: 
                     className="text-muted-foreground"
                     width={60}
                   />
-                  <Tooltip
-                    formatter={(value: number) => [formatTooltipValue(value), "Valor"]}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      borderColor: "hsl(var(--border))",
-                      borderRadius: "0.5rem",
-                    }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
+                  <Tooltip content={<CustomTooltip />} />
                   <Line
                     type="monotone"
                     dataKey="value"
@@ -103,15 +119,7 @@ export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: 
                     className="text-muted-foreground"
                     width={60}
                   />
-                  <Tooltip
-                    formatter={(value: number) => [formatTooltipValue(value), "Valor"]}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      borderColor: "hsl(var(--border))",
-                      borderRadius: "0.5rem",
-                    }}
-                    labelStyle={{ color: "hsl(var(--foreground))" }}
-                  />
+                  <Tooltip content={<CustomTooltip />} />
                   <Bar
                     dataKey="value"
                     fill="hsl(var(--primary))"
