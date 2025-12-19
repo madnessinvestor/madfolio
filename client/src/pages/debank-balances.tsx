@@ -54,11 +54,21 @@ export default function WalletTracker() {
 
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/saldo/stats", selectedWalletForHistory],
+    queryFn: async () => {
+      const response = await fetch(`/api/saldo/stats/${encodeURIComponent(selectedWalletForHistory || '')}`);
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      return response.json();
+    },
     enabled: !!selectedWalletForHistory,
   });
 
   const { data: history } = useQuery<any[]>({
     queryKey: ["/api/saldo/history", selectedWalletForHistory],
+    queryFn: async () => {
+      const response = await fetch(`/api/saldo/history/${encodeURIComponent(selectedWalletForHistory || '')}`);
+      if (!response.ok) throw new Error('Failed to fetch history');
+      return response.json();
+    },
     enabled: !!selectedWalletForHistory,
   });
 
