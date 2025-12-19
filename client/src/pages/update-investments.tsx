@@ -37,13 +37,31 @@ export default function UpdateInvestmentsPage() {
   const currentMonth = new Date().getMonth();
   const debounceTimerRef = useRef<Record<string, NodeJS.Timeout>>({});
 
-  const [selectedYear, setSelectedYear] = useState(currentYear.toString());
+  // Initialize year from localStorage, fallback to current year
+  const [selectedYear, setSelectedYear] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("updateInvestments_selectedYear");
+      return saved || currentYear.toString();
+    }
+    return currentYear.toString();
+  });
+
+  // Persist year selection to localStorage
+  useEffect(() => {
+    localStorage.setItem("updateInvestments_selectedYear", selectedYear);
+  }, [selectedYear]);
   const [monthDates, setMonthDates] = useState<Record<string, string>>({});
   const [monthUpdates, setMonthUpdates] = useState<Record<string, Record<string, string>>>({});
   const [monthUpdateDates, setMonthUpdateDates] = useState<Record<string, string>>({});
   const [monthLockedStatus, setMonthLockedStatus] = useState<Record<number, boolean>>({});
   const [savingMonths, setSavingMonths] = useState<Set<number>>(new Set());
   const originalDataRef = useRef<Record<string, Record<string, string>>>({});
+
+  // Initialize useEffect for year persistence (this ensures it runs client-side only)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const getMonthSequence = () => {
     const year = parseInt(selectedYear);
