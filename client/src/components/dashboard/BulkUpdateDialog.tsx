@@ -240,90 +240,64 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
             <ScrollArea className="flex-1 border rounded-lg">
               <div className="inline-block min-w-full">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold min-w-[200px] border-r sticky left-0 bg-background">
+                  <thead>
+                    <tr className="border-b bg-background">
+                      <th className="sticky left-0 z-20 bg-background border-r px-4 py-3 text-left font-semibold min-w-40">
                         Investimento
                       </th>
-                      {monthNames.map((_, idx) => {
-                        const monthKey = idx.toString();
-                        const date = monthDates[monthKey] || "";
-                        const formattedDate = date ? new Date(date + "T00:00:00").toLocaleDateString("pt-BR") : "-";
-                        
-                        // Calculate month total
-                        const monthTotal = Object.keys(monthUpdates[monthKey] || {}).reduce((sum, assetId) => {
-                          const value = monthUpdates[monthKey]?.[assetId] || "0";
-                          return sum + parseCurrencyValue(value);
-                        }, 0);
-                        
-                        // Calculate variation from previous month
-                        const prevMonthKey = (idx - 1).toString();
-                        const prevMonthTotal = idx > 0 ? Object.keys(monthUpdates[prevMonthKey] || {}).reduce((sum, assetId) => {
-                          const value = monthUpdates[prevMonthKey]?.[assetId] || "0";
-                          return sum + parseCurrencyValue(value);
-                        }, 0) : 0;
-                        
-                        const variation = monthTotal - prevMonthTotal;
-                        const variationPercent = prevMonthTotal > 0 ? ((variation / prevMonthTotal) * 100).toFixed(2).replace('.', ',') : "0,00";
-                        
-                        const formatCurrencyValue = (val: number) =>
-                          `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                        
-                        return (
-                          <th key={idx} className="px-2 py-2 text-center font-semibold min-w-[110px] border-r">
-                            <div className="text-xs font-medium mb-1">{monthShortNames[idx]}</div>
-                            <div className="text-xs font-semibold mt-2 text-foreground">{formatCurrencyValue(monthTotal)}</div>
-                            {idx > 0 && (
-                              <>
-                                <div className={`text-xs mt-1 ${variation >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  {variation >= 0 ? '+' : ''}{formatCurrencyValue(variation)}
-                                </div>
-                                <div className={`text-xs ${variation >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                  {variation >= 0 ? '+' : ''}{variationPercent}%
-                                </div>
-                              </>
-                            )}
-                          </th>
-                        );
-                      })}
+                      {monthNames.map((_, idx) => (
+                        <th key={idx} className="border-r px-2 py-2 text-center font-semibold min-w-28">
+                          <div className="text-xs font-medium">{monthShortNames[idx]}</div>
+                          <div className="text-xs text-muted-foreground font-normal">Data da Atualização</div>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Date input row */}
+                    <tr className="border-b bg-muted/20">
+                      <td className="sticky left-0 z-10 bg-muted/20 border-r px-4 py-2"></td>
+                      {monthNames.map((_, idx) => (
+                        <td key={idx} className="border-r px-2 py-2">
+                          <Input
+                            type="date"
+                            value={monthDates[idx.toString()] || ""}
+                            onChange={(e) => handleMonthDateChange(idx.toString(), e.target.value)}
+                            className="w-full px-2 py-1 text-xs border rounded bg-background"
+                            data-testid={`input-month-date-${idx}`}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+
+                    {/* Asset rows */}
                     {assets.map((asset) => (
-                      <tr key={asset.id} className="border-b hover:bg-muted/50 transition-colors">
-                        <td className="px-4 py-3 font-medium min-w-[200px] border-r sticky left-0 bg-background hover:bg-muted/50">
-                          <div className="text-sm font-semibold">{asset.name}</div>
-                          <div className="text-xs text-muted-foreground">{asset.symbol}</div>
+                      <tr key={asset.id} className="border-b hover:bg-muted/50">
+                        <td className="sticky left-0 z-10 bg-background hover:bg-muted/50 border-r px-4 py-3">
+                          <p className="font-semibold text-sm">{asset.symbol}</p>
+                          <p className="text-xs text-muted-foreground">{asset.name}</p>
                         </td>
                         {Array.from({ length: 12 }).map((_, monthIdx) => {
                           const monthKey = monthIdx.toString();
                           const cellKey = `${monthKey}-${asset.id}`;
-                          const value = monthUpdates[monthKey]?.[asset.id] || "";
                           const isSaving = savingCells.has(cellKey);
+                          const value = monthUpdates[monthKey]?.[asset.id] || "";
                           
                           return (
-                            <td key={monthIdx} className="px-2 py-3 border-r">
-                              <div className="relative space-y-2">
+                            <td key={monthIdx} className="border-r px-2 py-2">
+                              <div className="relative">
                                 <Input
+                                  type="text"
                                   value={value}
                                   onChange={(e) => handleUpdate(monthKey, asset.id, e.target.value)}
-                                  placeholder="R$ 0,00"
-                                  className="text-right text-sm w-full"
+                                  placeholder="0,00"
+                                  className={`w-full px-2 py-1 text-xs border rounded text-right bg-background transition-colors ${
+                                    isSaving ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : ""
+                                  }`}
                                   data-testid={`input-snapshot-${monthKey}-${asset.id}`}
                                 />
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] text-muted-foreground">Data:</Label>
-                                  <Input
-                                    type="date"
-                                    value={monthDates[monthKey] || ""}
-                                    onChange={(e) => handleMonthDateChange(monthKey, e.target.value)}
-                                    className="h-7 text-[10px] px-2"
-                                  />
-                                </div>
                                 {isSaving && (
-                                  <div className="absolute right-2 top-4 transform -translate-y-1/2">
-                                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                  </div>
+                                  <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-3 w-3 animate-spin text-muted-foreground" />
                                 )}
                               </div>
                             </td>
@@ -331,6 +305,63 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                         })}
                       </tr>
                     ))}
+                    {/* Total row */}
+                    <tr className="bg-muted/50 border-t-2 font-semibold">
+                      <td className="sticky left-0 z-10 bg-muted/50 border-r px-4 py-3 text-sm">
+                        Soma dos Investimentos
+                      </td>
+                      {monthNames.map((_, idx) => {
+                        const monthKey = idx.toString();
+                        const currentTotal = Object.keys(monthUpdates[monthKey] || {}).reduce((sum, assetId) => {
+                          const value = monthUpdates[monthKey]?.[assetId] || "0";
+                          return sum + parseCurrencyValue(value);
+                        }, 0);
+                        
+                        const prevMonthKey = (idx - 1).toString();
+                        const prevMonthTotal = idx > 0 ? Object.keys(monthUpdates[prevMonthKey] || {}).reduce((sum, assetId) => {
+                          const value = monthUpdates[prevMonthKey]?.[assetId] || "0";
+                          return sum + parseCurrencyValue(value);
+                        }, 0) : currentTotal;
+                        
+                        const variation = currentTotal - prevMonthTotal;
+                        const variationPercent = prevMonthTotal > 0 ? ((variation / prevMonthTotal) * 100).toFixed(2) : "0.00";
+                        
+                        const formatCurrencyValue = (val: number) =>
+                          `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                        return (
+                          <td key={idx} className="border-r px-2 py-2">
+                            <div className="space-y-1 text-center">
+                              <div className="text-sm font-semibold">
+                                {formatCurrencyValue(currentTotal)}
+                              </div>
+                              {idx > 0 && (
+                                <>
+                                  <div
+                                    className={`text-xs font-medium ${
+                                      variation >= 0
+                                        ? "text-green-600 dark:text-green-400"
+                                        : "text-red-600 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {variation >= 0 ? "+" : ""}{formatCurrencyValue(variation)}
+                                  </div>
+                                  <div
+                                    className={`text-xs font-medium ${
+                                      variation >= 0
+                                        ? "text-green-600 dark:text-green-400"
+                                        : "text-red-600 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {variation >= 0 ? "+" : ""}{variationPercent}%
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   </tbody>
                 </table>
               </div>
