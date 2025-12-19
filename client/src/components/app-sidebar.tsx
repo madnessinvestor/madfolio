@@ -50,7 +50,7 @@ const menuItems = [
     icon: Building2,
   },
   {
-    title: "Evolução Mensal",
+    title: "Evolução de Investimentos",
     url: "/monthly-snapshots",
     icon: TrendingUp,
   },
