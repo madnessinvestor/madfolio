@@ -57,7 +57,7 @@ export function HoldingsTable({
         {onAdd && (
           <Button size="sm" onClick={onAdd} data-testid="button-add-holding">
             <Plus className="h-4 w-4 mr-1" />
-            Add
+            Adicionar
           </Button>
         )}
       </CardHeader>
@@ -66,14 +66,14 @@ export function HoldingsTable({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Asset</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="text-right">Avg Price</TableHead>
-                <TableHead className="text-right">Current Price</TableHead>
-                <TableHead className="text-right">Total Value</TableHead>
-                <TableHead className="text-right">P/L</TableHead>
+                <TableHead>Ativo</TableHead>
+                <TableHead className="text-right">Quantidade</TableHead>
+                <TableHead className="text-right">Preço Médio</TableHead>
+                <TableHead className="text-right">Preço Atual</TableHead>
+                <TableHead className="text-right">Valor Total</TableHead>
+                <TableHead className="text-right">Lucro/Perda %</TableHead>
                 <TableHead className="text-right">24h</TableHead>
-                <TableHead className="text-right sr-only">Actions</TableHead>
+                <TableHead className="text-right sr-only">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
