@@ -423,7 +423,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
             {market === "crypto_simplified" ? (
               <>
                 <div className="grid gap-2">
-                  <Label htmlFor="wallet-select">Selecionar Wallet do DeBank</Label>
+                  <Label htmlFor="wallet-select">Selecionar Wallet</Label>
                   <Select value={walletAddress} onValueChange={(value) => {
                     setWalletAddress(value);
                     const selectedWallet = debankWallets.find(w => w.address === value);
@@ -458,7 +458,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
                     </SelectContent>
                   </Select>
                   {debankWallets.length === 0 && (
-                    <p className="text-xs text-muted-foreground">Carregando wallets do DeBank...</p>
+                    <p className="text-xs text-muted-foreground">Carregando wallets...</p>
                   )}
                 </div>
 
@@ -474,7 +474,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="wallet-link">Link da Wallet (Jup.Ag, DeBank ou Etherscan)</Label>
+                  <Label htmlFor="wallet-link">Link da Wallet (opcional)</Label>
                   <Input
                     id="wallet-link"
                     placeholder="Ex: https://jup.ag/portfolio/..."
