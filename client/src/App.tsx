@@ -207,7 +207,9 @@ function AppWrapper() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <App />
+        <CurrencyProvider>
+          <App />
+        </CurrencyProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
