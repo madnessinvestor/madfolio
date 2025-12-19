@@ -665,6 +665,29 @@ export async function registerRoutes(
         };
       }));
       
+      // Automatically create a history record for the current month if it doesn't exist
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const dateStr = now.toISOString().split('T')[0];
+
+      try {
+        const existingHistory = await storage.getPortfolioHistory(userId);
+        const currentMonthRecord = existingHistory.find(h => h.month === currentMonth && h.year === currentYear);
+
+        if (!currentMonthRecord && totalValue > 0) {
+          await storage.createPortfolioHistory({
+            userId,
+            totalValue,
+            month: currentMonth,
+            year: currentYear,
+            date: dateStr
+          });
+        }
+      } catch (historyError) {
+        console.error("Error creating auto history record:", historyError);
+      }
+
       res.json({
         totalValue,
         cryptoValue,
