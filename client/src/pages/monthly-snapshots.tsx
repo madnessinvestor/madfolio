@@ -334,7 +334,7 @@ export default function MonthlySnapshotsPage() {
     return `${day}/${month}/${year}`;
   };
 
-  const years = Array.from({ length: 5 }, (_, i) => (2025 + i).toString());
+  const years = Array.from({ length: 6 }, (_, i) => (2025 + i).toString());
 
   return (
     <div className="space-y-6 p-6">
