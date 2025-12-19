@@ -97,34 +97,26 @@ export default function MonthlySnapshotsPage() {
     return total;
   };
 
-  // Memoized chart data calculation - 36 months starting from December 2025
+  // Memoized chart data calculation - 12 months of selected year
   const chartData = useMemo(() => {
     const data: Array<{ month: string; value: number; locked: boolean }> = [];
+    const year = parseInt(selectedYear);
     
-    // Start from December 2025
-    let currentDate = new Date(2025, 11, 1); // December 1, 2025
-    
-    // Generate 36 months
-    for (let i = 0; i < 36; i++) {
-      const month = currentDate.getMonth();
-      const year = currentDate.getFullYear();
-      
+    // Generate 12 months for the selected year
+    for (let month = 0; month < 12; month++) {
       // Check if month is locked (registered)
       const isLocked = monthLockedStatus[month] === true;
       const monthTotal = getMonthTotalValue(month);
       
       data.push({
-        month: `${monthShortNames[month]} ${year.toString().slice(-2)}`,
+        month: monthShortNames[month],
         value: isLocked ? monthTotal : 0,
         locked: isLocked,
       });
-      
-      // Move to next month
-      currentDate = new Date(year, month + 2, 0);
     }
     
     return data;
-  }, [monthLockedStatus, monthUpdates]);
+  }, [monthLockedStatus, monthUpdates, selectedYear]);
 
   const monthSequence = getMonthSequence();
 
@@ -355,7 +347,7 @@ export default function MonthlySnapshotsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Evolução do Patrimônio - 36 Meses
+            Evolução do Patrimônio - {selectedYear}
           </CardTitle>
         </CardHeader>
         <CardContent>
