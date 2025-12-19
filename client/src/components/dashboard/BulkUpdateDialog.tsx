@@ -63,6 +63,11 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
     enabled: open,
   });
 
+  const { data: yearSnapshots = {} } = useQuery<Record<string, Record<number, { value: number; date: string }>>>({
+    queryKey: ["/api/snapshots/year", selectedYear],
+    enabled: open,
+  });
+
   useEffect(() => {
     if (assets.length > 0) {
       const year = parseInt(selectedYear);
@@ -76,7 +81,9 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
         
         newMonthUpdates[monthKey] = {};
         assets.forEach((asset) => {
-          newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(asset.currentPrice || 0);
+          const monthData = yearSnapshots[asset.id]?.[month];
+          const value = monthData?.value || asset.currentPrice || 0;
+          newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(value);
         });
       }
       

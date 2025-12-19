@@ -307,6 +307,42 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/snapshots/year/:year", isAuthenticated, async (req: any, res) => {
+    try {
+      const year = parseInt(req.params.year as string);
+      if (isNaN(year)) {
+        return res.status(400).json({ error: "Invalid year" });
+      }
+      
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      const snapshots = await storage.getSnapshotsByDateRange(startDate, endDate);
+      
+      const assetMonthMap: Record<string, Record<number, { value: number; date: string }>> = {};
+      
+      snapshots.forEach(snapshot => {
+        if (!assetMonthMap[snapshot.assetId]) {
+          assetMonthMap[snapshot.assetId] = {};
+        }
+        
+        const date = new Date(snapshot.date);
+        const month = date.getMonth();
+        
+        if (!assetMonthMap[snapshot.assetId][month] || new Date(snapshot.date) > new Date(assetMonthMap[snapshot.assetId][month].date)) {
+          assetMonthMap[snapshot.assetId][month] = {
+            value: snapshot.value,
+            date: snapshot.date
+          };
+        }
+      });
+      
+      res.json(assetMonthMap);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch snapshots for year" });
+    }
+  });
+
   app.post("/api/snapshots", isAuthenticated, async (req: any, res) => {
     try {
       const validated = insertSnapshotSchema.parse(req.body);
