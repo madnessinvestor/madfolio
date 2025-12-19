@@ -15,8 +15,8 @@ Um aplicativo completo de rastreamento de portfólio que permite gerenciar inves
 
 - **Frontend**: React + TypeScript + Vite + Tailwind CSS
 - **Backend**: Node.js + Express + TypeScript
-- **Database**: PostgreSQL (Neon)
-- **Authentication**: Replit Auth + Local Credentials
+- **Database**: PostgreSQL (Supabase - free tier)
+- **Authentication**: Local credentials + bcrypt
 - **State Management**: TanStack Query v5
 - **UI Components**: Shadcn/ui + Radix UI
 
@@ -25,10 +25,10 @@ Um aplicativo completo de rastreamento de portfólio que permite gerenciar inves
 ### Pré-requisitos
 
 - Node.js 20+
-- PostgreSQL (ou usar Replit Database)
+- Conta Supabase (free tier)
 - npm
 
-### Setup Local
+### Setup Local / GitHub
 
 1. Clone o repositório:
 ```bash
@@ -41,27 +41,40 @@ cd portfolio-tracker
 npm install
 ```
 
-3. Configure as variáveis de ambiente:
+3. Configure Supabase (escolha um):
+
+**Opção A - Setup Interativo (recomendado):**
 ```bash
-cp .env.example .env.local
+npm run setup-env
+# Coloque suas credenciais Supabase quando solicitado
 ```
 
-4. Configure o banco de dados:
-```bash
-npm run db:push
+**Opção B - Manual:**
+Crie arquivo `.env` com:
+```
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_ANON_KEY=sua-chave-anon
+DATABASE_URL=postgresql://postgres:sua-senha@db.seu-projeto.supabase.co:5432/postgres
+NODE_ENV=development
+PORT=5000
 ```
 
-5. Crie um usuário admin:
-```bash
-npm run seed:admin
-```
-
-6. Inicie o servidor de desenvolvimento:
+4. Inicie o servidor:
 ```bash
 npm run dev
 ```
 
 O aplicativo estará disponível em `http://localhost:5000`
+
+### Obter Credenciais Supabase
+
+1. Acesse [supabase.com](https://supabase.com) e crie uma conta
+2. Crie um novo projeto (free tier)
+3. Em **Settings → API**, copie:
+   - **SUPABASE_URL** (Project URL)
+   - **SUPABASE_ANON_KEY** (Anon Key)
+4. Em **Settings → Database**, copie:
+   - **DATABASE_URL** (Connection String)
 
 ## Credenciais de Administrador Padrão
 

@@ -6,7 +6,6 @@ server/public
 vite.config.ts.*
 *.tar.gz
 wallet-cache.json
-.env
 .env.local
 .env.*.local
 .cache/
