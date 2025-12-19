@@ -238,26 +238,11 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {categoryData.length > 0 ? (
-          <>
-            <CategoryChart title="Distribuição por Categoria" data={categoryData} />
-            <CategoryChart
-              title="Ativos por Mercado"
-              data={[
-                { name: "Mercado Cripto", value: cryptoValue, color: "hsl(var(--chart-1))" },
-                { name: "Renda Fixa", value: fixedIncomeValue, color: "hsl(var(--chart-2))" },
-                { name: "Renda Variável", value: variableIncomeValue, color: "hsl(var(--chart-3))" },
-                { name: "Imóveis", value: realEstateValue, color: "hsl(var(--chart-4))" },
-              ].filter(d => d.value > 0)}
-            />
-          </>
-        ) : (
-          <div className="lg:col-span-2 h-64 rounded-lg border flex items-center justify-center text-muted-foreground">
-            Adicione ativos e lançamentos para ver a distribuição do portfólio
-          </div>
-        )}
-      </div>
+      {categoryData.length > 0 && (
+        <div>
+          <CategoryChart title="Distribuição por Categoria" data={categoryData} />
+        </div>
+      )}
 
       <PortfolioHoldings
         holdings={summary?.holdings || []}
