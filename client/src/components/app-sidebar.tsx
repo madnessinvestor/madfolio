@@ -60,11 +60,6 @@ const menuItems = [
     url: "/debank",
     icon: Wallet,
   },
-  {
-    title: "Atualizar Investimentos",
-    url: "/update-investments",
-    icon: RefreshCw,
-  },
 ];
 
 export function AppSidebar() {
