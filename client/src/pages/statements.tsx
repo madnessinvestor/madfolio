@@ -145,16 +145,10 @@ export default function StatementsPage() {
     };
   });
 
-  // Get data starting from 11/25 for at least 25 months (11/25 + 24 months)
-  const startDate = new Date(2025, 10); // November 2025
-  const last24Months = historyWithVariations
-    .filter((h) => {
-      const monthNum = parseInt(h.month);
-      return new Date(h.year, monthNum - 1) >= startDate;
-    })
-    .slice(0, 25); // Limit to 25 months starting from 11/25
+  // Show all available history from backend (automatically last 24 months)
+  const last24Months = historyWithVariations;
 
-  // Filter by year for summary cards, but use full 25 months for chart
+  // Filter by year for summary cards, but use full 24 months for chart
   const performanceData = last24Months
     .map((h) => ({
       month: h.month,

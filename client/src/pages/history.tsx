@@ -40,11 +40,8 @@ export default function HistoryPage() {
     };
   });
 
-  // Get data starting from 11/25 for at least 25 months (11/25 + 24 months)
-  const startDate = new Date(2025, 10); // November 2025
-  const last24Months = historyWithVariations
-    .filter((item) => new Date(item.date) >= startDate)
-    .slice(0, 25); // Limit to 25 months starting from 11/25
+  // Show all available history from backend (automatically last 24 months)
+  const last24Months = historyWithVariations;
 
   const chartData = last24Months.map(item => ({
     month: format(new Date(item.date), "MMM/yy", { locale: ptBR }),
