@@ -37,17 +37,21 @@ export function PerformanceChart({ data, title = "Evolução do Portfólio" }: P
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
+      const isPositive = dataPoint.variation >= 0;
+      
       return (
-        <div className="bg-popover border border-border p-3 rounded-lg shadow-sm">
-          <p className="font-semibold text-foreground mb-1">{label}</p>
-          <p className="text-sm text-foreground">
-            Patrimônio: <span className="font-medium">{formatTooltipValue(dataPoint.value)}</span>
+        <div className="bg-popover border border-border p-3 rounded-lg shadow-lg">
+          <p className="font-semibold text-foreground mb-2">{label}</p>
+          <p className="text-sm text-foreground mb-2">
+            Portfólio: <span className="font-medium">{formatTooltipValue(dataPoint.value)}</span>
           </p>
           {dataPoint.variation !== undefined && (
-            <div className="mt-1 pt-1 border-t border-border">
-              <p className={`text-xs flex items-center gap-1 ${dataPoint.variation >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {dataPoint.variation >= 0 ? '+' : ''}{formatTooltipValue(dataPoint.variation)}
-                ({dataPoint.variationPercent?.toFixed(2)}%)
+            <div className={`pt-2 border-t border-border mt-2 ${isPositive ? 'border-green-500/30' : 'border-red-500/30'}`}>
+              <p className={`text-sm font-semibold flex items-center gap-1 ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                Variação: {isPositive ? '+' : ''}{formatTooltipValue(dataPoint.variation)}
+              </p>
+              <p className={`text-xs font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {isPositive ? '+' : ''}{dataPoint.variationPercent?.toFixed(2)}%
               </p>
             </div>
           )}
