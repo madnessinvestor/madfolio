@@ -734,7 +734,8 @@ export async function registerRoutes(
     const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
       const { totalValue, month, year, date } = req.body;
-      const history = await storage.createPortfolioHistory({
+      // Use createOrUpdate to avoid duplicates when re-saving a month
+      const history = await storage.createOrUpdatePortfolioHistory({
         userId,
         totalValue,
         month,
@@ -743,7 +744,7 @@ export async function registerRoutes(
       });
       res.status(201).json(history);
     } catch (error) {
-      res.status(500).json({ error: "Failed to create portfolio history" });
+      res.status(500).json({ error: "Failed to create or update portfolio history" });
     }
   });
 

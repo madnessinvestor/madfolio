@@ -36,7 +36,9 @@ export interface IStorage {
   deleteWallet(id: string): Promise<boolean>;
   
   getPortfolioHistory(userId?: string): Promise<PortfolioHistory[]>;
+  getPortfolioHistoryByMonthYear(userId: string, month: number, year: number): Promise<PortfolioHistory | undefined>;
   createPortfolioHistory(history: InsertPortfolioHistory): Promise<PortfolioHistory>;
+  createOrUpdatePortfolioHistory(history: InsertPortfolioHistory): Promise<PortfolioHistory>;
   getPortfolioHistoryBySnapshots(userId?: string): Promise<Array<{date: string; totalValue: number; month: number; year: number}>>;
   getPortfolioHistoryByMonth(userId?: string): Promise<Array<{month: number; year: number; value: number; isLocked: number}>>;
 
@@ -306,6 +308,35 @@ export class DatabaseStorage implements IStorage {
   async createPortfolioHistory(history: InsertPortfolioHistory): Promise<PortfolioHistory> {
     const [newHistory] = await db.insert(portfolioHistory).values(history).returning();
     return newHistory;
+  }
+
+  async getPortfolioHistoryByMonthYear(userId: string, month: number, year: number): Promise<PortfolioHistory | undefined> {
+    const [record] = await db.select().from(portfolioHistory)
+      .where(and(
+        eq(portfolioHistory.userId, userId),
+        eq(portfolioHistory.month, month),
+        eq(portfolioHistory.year, year)
+      ));
+    return record;
+  }
+
+  async createOrUpdatePortfolioHistory(history: InsertPortfolioHistory): Promise<PortfolioHistory> {
+    if (!history.userId) {
+      throw new Error("userId is required for portfolio history");
+    }
+    
+    const existing = await this.getPortfolioHistoryByMonthYear(history.userId, history.month, history.year);
+    
+    if (existing) {
+      const [updated] = await db.update(portfolioHistory)
+        .set(history)
+        .where(eq(portfolioHistory.id, existing.id))
+        .returning();
+      return updated;
+    }
+    
+    const [created] = await db.insert(portfolioHistory).values(history).returning();
+    return created;
   }
 
   async getActivities(userId?: string): Promise<ActivityLog[]> {
