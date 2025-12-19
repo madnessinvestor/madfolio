@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,10 +9,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DatabaseIndicator } from "@/components/DatabaseIndicator";
 import { CurrencySwitcher, type DisplayCurrency } from "@/components/CurrencySwitcher";
-import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Loader2, Save, Check } from "lucide-react";
+import { Loader2, Save, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -26,7 +24,6 @@ import VariableIncomePage from "@/pages/variable-income";
 import RealEstatePage from "@/pages/real-estate";
 import HistoryPage from "@/pages/history";
 import StatementsPage from "@/pages/statements";
-import LandingPage from "@/pages/landing";
 import DeBankBalances from "@/pages/debank-balances";
 import UpdateInvestmentsPage from "@/pages/update-investments";
 import ActivityPage from "@/pages/activity";
@@ -49,32 +46,29 @@ function Router() {
   );
 }
 
-function AuthenticatedApp() {
-  const { user } = useAuth();
+function MainApp() {
   const { toast } = useToast();
   const { displayCurrency, setDisplayCurrency, isBalanceHidden, setIsBalanceHidden } = useDisplayCurrency();
   const [isSaved, setIsSaved] = useState(false);
   
   // Sincronizar dados automaticamente ao carregar
   useEffect(() => {
-    if (user) {
-      const syncData = async () => {
-        try {
-          const response = await apiRequest("POST", "/api/sync") as any;
-          if (response?.success) {
-            queryClient.invalidateQueries();
-          }
-        } catch (error) {
-          console.error("Auto-sync failed:", error);
+    const syncData = async () => {
+      try {
+        const response = await apiRequest("POST", "/api/sync") as any;
+        if (response?.success) {
+          queryClient.invalidateQueries();
         }
-      };
-      
-      syncData();
-      // Sincronizar a cada 5 minutos
-      const interval = setInterval(syncData, 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+      } catch (error) {
+        console.error("Auto-sync failed:", error);
+      }
+    };
+    
+    syncData();
+    // Sincronizar a cada 5 minutos
+    const interval = setInterval(syncData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -132,43 +126,25 @@ function AuthenticatedApp() {
                 )}
               </button>
               <ThemeToggle />
-              {user && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => saveMutation.mutate()}
-                    disabled={saveMutation.isPending}
-                    data-testid="button-save-changes"
-                    className="gap-2"
-                  >
-                    {saveMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isSaved ? (
-                      <Check className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    <span className="hidden sm:inline">
-                      {isSaved ? "Salvo!" : "Salvar"}
-                    </span>
-                  </Button>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user.profileImageUrl || undefined} />
-                    <AvatarFallback>
-                      {user.firstName?.[0] || user.email?.[0] || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm hidden sm:inline">
-                    {user.firstName || user.username || user.email}
-                  </span>
-                  <Button variant="ghost" size="icon" asChild>
-                    <a href="/api/logout">
-                      <LogOut className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending}
+                data-testid="button-save-changes"
+                className="gap-2"
+              >
+                {saveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isSaved ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {isSaved ? "Salvo!" : "Salvar"}
+                </span>
+              </Button>
             </div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
@@ -181,23 +157,7 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <LandingPage />;
-  }
-
-  return (
-    <AuthenticatedApp />
-  );
+  return <MainApp />;
 }
 
 function AppWrapper() {
