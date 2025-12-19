@@ -66,6 +66,9 @@ export default function StatementsPage() {
     queryKey: ["/api/assets/history/all"],
   });
 
+  // Available years: 2025-2030
+  const availableYears = [2025, 2026, 2027, 2028, 2029, 2030];
+
   const handleExport = (format: "csv" | "pdf") => {
     if (statements.length === 0) {
       toast({
@@ -173,7 +176,7 @@ export default function StatementsPage() {
               <SelectValue placeholder="Ano" />
             </SelectTrigger>
             <SelectContent>
-              {[currentYear, currentYear - 1, currentYear - 2].map((year) => (
+              {availableYears.map((year) => (
                 <SelectItem key={year} value={year.toString()}>
                   {year}
                 </SelectItem>
