@@ -253,12 +253,12 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               <div className="bg-card border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">Patrimônio Inicial</p>
+                <p className="text-sm text-muted-foreground mb-2">Portfólio Inicial</p>
                 <p className="text-2xl font-bold">{format(initialPortfolioValue)}</p>
               </div>
 
               <div className="bg-card border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">Patrimônio do Mês Atual</p>
+                <p className="text-sm text-muted-foreground mb-2">Portfólio Atual</p>
                 <p className="text-2xl font-bold">{format(currentPortfolioValue)}</p>
               </div>
 
@@ -267,7 +267,7 @@ export default function Dashboard() {
                   ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900" 
                   : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900"
               }`}>
-                <p className="text-sm text-muted-foreground mb-2">Variação do Patrimônio</p>
+                <p className="text-sm text-muted-foreground mb-2">Variação do Portfólio</p>
                 <div className="space-y-1">
                   <p className={`text-2xl font-bold ${
                     isVariationPositive 
