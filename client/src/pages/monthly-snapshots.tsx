@@ -244,7 +244,7 @@ export default function MonthlySnapshotsPage() {
         });
       }
       
-      lockMonthMutation.mutate({ year, month, locked: true });
+      lockMonthMutation.mutate({ year, month: month + 1, locked: true });
     } catch (error) {
       toast({
         title: "Erro",
@@ -265,7 +265,7 @@ export default function MonthlySnapshotsPage() {
 
     try {
       const year = parseInt(selectedYear);
-      lockMonthMutation.mutate({ year, month, locked: false });
+      lockMonthMutation.mutate({ year, month: month + 1, locked: false });
     } catch (error) {
       toast({
         title: "Erro",
