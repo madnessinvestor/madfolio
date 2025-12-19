@@ -293,18 +293,17 @@ export class DatabaseStorage implements IStorage {
       snapshotsByAsset[assetId].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     });
     
-    // Generate 24 months of history
-    const now = new Date();
-    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
-    const startDate = new Date(endDate);
-    startDate.setMonth(startDate.getMonth() - 23); // Go back 23 months (24 months total)
-    startDate.setDate(1); // First day of that month
+    // Generate 48 months of history starting from November 2025
+    const startDate = new Date(2025, 10, 1); // November 2025 (month is 0-indexed)
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 47); // Add 47 months to get 48 total
+    const lastDayOfEndMonth = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0); // Last day of final month
     
     const portfolioHistory: Array<{date: string; totalValue: number; month: number; year: number}> = [];
     
     // Generate entry for each month
     let currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
+    while (currentDate <= lastDayOfEndMonth) {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
       const lastDayOfMonth = new Date(year, month, 0); // Last day of current month
