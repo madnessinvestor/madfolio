@@ -28,6 +28,7 @@ import StatementsPage from "@/pages/statements";
 import LandingPage from "@/pages/landing";
 import DeBankBalances from "@/pages/debank-balances";
 import UpdateInvestmentsPage from "@/pages/update-investments";
+import ActivityPage from "@/pages/activity";
 
 function Router() {
   return (
@@ -39,6 +40,7 @@ function Router() {
       <Route path="/real-estate" component={RealEstatePage} />
       <Route path="/history" component={HistoryPage} />
       <Route path="/statements" component={StatementsPage} />
+      <Route path="/activity" component={ActivityPage} />
       <Route path="/debank" component={DeBankBalances} />
       <Route path="/update-investments" component={UpdateInvestmentsPage} />
       <Route component={NotFound} />

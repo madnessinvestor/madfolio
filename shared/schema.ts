@@ -81,3 +81,20 @@ export const portfolioHistory = pgTable("portfolio_history", {
 export const insertPortfolioHistorySchema = createInsertSchema(portfolioHistory).omit({ id: true, createdAt: true });
 export type InsertPortfolioHistory = z.infer<typeof insertPortfolioHistorySchema>;
 export type PortfolioHistory = typeof portfolioHistory.$inferSelect;
+
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  type: text("type").notNull(), // create, update, delete, snapshot
+  category: text("category").notNull(), // asset, snapshot, etc
+  assetId: varchar("asset_id"),
+  assetName: text("asset_name"),
+  assetSymbol: text("asset_symbol"),
+  action: text("action").notNull(), // detailed action description
+  details: text("details"), // JSON details of the change
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, createdAt: true });
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;

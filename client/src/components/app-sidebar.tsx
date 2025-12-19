@@ -56,6 +56,11 @@ const menuItems = [
     icon: History,
   },
   {
+    title: "Lançamentos",
+    url: "/activity",
+    icon: FileText,
+  },
+  {
     title: "Wallet Tracker",
     url: "/debank",
     icon: Wallet,

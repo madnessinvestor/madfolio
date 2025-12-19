@@ -82,6 +82,17 @@ export async function registerRoutes(
         await storage.updateAsset(asset.id, { currentPrice: price, lastPriceUpdate: new Date() });
       }
       
+      await storage.createActivityLog({
+        userId,
+        type: "create",
+        category: "asset",
+        assetId: asset.id,
+        assetName: asset.name,
+        assetSymbol: asset.symbol,
+        action: `Investimento adicionado: ${asset.symbol} - ${asset.name}`,
+        details: `Quantidade: ${asset.quantity}, Categoria: ${asset.category}`,
+      });
+      
       const updatedAsset = await storage.getAsset(asset.id);
       res.status(201).json(updatedAsset);
     } catch (error) {
@@ -94,12 +105,38 @@ export async function registerRoutes(
   });
 
   app.patch("/api/assets/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
     try {
+      const oldAsset = await storage.getAsset(req.params.id);
       const validated = insertAssetSchema.partial().parse(req.body);
       const asset = await storage.updateAsset(req.params.id, validated);
       if (!asset) {
         return res.status(404).json({ error: "Asset not found" });
       }
+      
+      if (oldAsset) {
+        const changes = [];
+        if (validated.quantity !== undefined && oldAsset.quantity !== validated.quantity) {
+          changes.push(`Quantidade: ${oldAsset.quantity} → ${validated.quantity}`);
+        }
+        if (validated.acquisitionPrice !== undefined && oldAsset.acquisitionPrice !== validated.acquisitionPrice) {
+          changes.push(`Preço de aquisição: ${oldAsset.acquisitionPrice} → ${validated.acquisitionPrice}`);
+        }
+        
+        if (changes.length > 0) {
+          await storage.createActivityLog({
+            userId,
+            type: "update",
+            category: "asset",
+            assetId: asset.id,
+            assetName: asset.name,
+            assetSymbol: asset.symbol,
+            action: `Investimento editado: ${asset.symbol}`,
+            details: changes.join(", "),
+          });
+        }
+      }
+      
       res.json(asset);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -110,11 +147,24 @@ export async function registerRoutes(
   });
 
   app.delete("/api/assets/:id", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
     try {
       const asset = await storage.getAsset(req.params.id);
       if (!asset) {
         return res.status(404).json({ error: "Asset not found" });
       }
+      
+      await storage.createActivityLog({
+        userId,
+        type: "delete",
+        category: "asset",
+        assetId: asset.id,
+        assetName: asset.name,
+        assetSymbol: asset.symbol,
+        action: `Investimento deletado: ${asset.symbol} - ${asset.name}`,
+        details: `Quantidade: ${asset.quantity}`,
+      });
+      
       const updated = await storage.updateAsset(req.params.id, { isDeleted: 1, deletedAt: new Date() });
       res.status(204).send();
     } catch (error) {
@@ -421,9 +471,25 @@ export async function registerRoutes(
   });
 
   app.post("/api/snapshots", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
     try {
       const validated = insertSnapshotSchema.parse(req.body);
       const snapshot = await storage.createSnapshot(validated);
+      
+      const asset = await storage.getAsset(validated.assetId);
+      if (asset) {
+        await storage.createActivityLog({
+          userId,
+          type: "snapshot",
+          category: "snapshot",
+          assetId: asset.id,
+          assetName: asset.name,
+          assetSymbol: asset.symbol,
+          action: `Valor atualizado para ${asset.symbol}`,
+          details: `R$ ${validated.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        });
+      }
+      
       res.status(201).json(snapshot);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -890,6 +956,16 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete wallet" });
+    }
+  });
+
+  app.get("/api/activities", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    try {
+      const activities = await storage.getActivities(userId);
+      res.json(activities);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch activities" });
     }
   });
 
