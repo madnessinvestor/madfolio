@@ -24,8 +24,11 @@ interface PerformanceChartProps {
 }
 
 export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: PerformanceChartProps) {
-  const formatCurrency = (value: number) =>
-    `R$ ${(value / 1000).toFixed(0)}k`;
+  const formatCurrency = (value: number) => {
+    if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+    return `R$ ${value.toFixed(0)}`;
+  };
 
   const formatTooltipValue = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;

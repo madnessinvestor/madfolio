@@ -705,23 +705,27 @@ export async function registerRoutes(
   });
 
   app.get("/api/portfolio/history", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
     try {
-      const statements = await storage.getMonthlyStatements();
+      const history = await storage.getPortfolioHistory(userId);
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
       
-      const history = statements
+      const formattedHistory = history
         .sort((a, b) => {
           if (a.year !== b.year) return a.year - b.year;
           return a.month - b.month;
         })
-        .map(s => ({
-          month: `${monthNames[s.month - 1]}`,
-          year: s.year,
-          value: s.endValue,
-          variation: s.startValue > 0 ? ((s.endValue - s.startValue) / s.startValue) * 100 : 0
-        }));
+        .map((h, index, array) => {
+          const prevValue = index > 0 ? array[index - 1].totalValue : 0;
+          return {
+            month: `${monthNames[h.month - 1]}`,
+            year: h.year,
+            value: h.totalValue,
+            variation: prevValue > 0 ? ((h.totalValue - prevValue) / prevValue) * 100 : 0
+          };
+        });
       
-      res.json(history);
+      res.json(formattedHistory);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch portfolio history" });
     }

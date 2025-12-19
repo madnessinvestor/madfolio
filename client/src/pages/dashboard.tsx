@@ -118,11 +118,11 @@ export default function Dashboard() {
 
   const categoryTotals: Record<string, number> = {};
   summary?.holdings.forEach((h) => {
-    const cat = h.category === "crypto" ? "Cripto" : 
-                h.category === "stocks" ? "Ações" : 
-                h.category === "fixed_income" ? "Renda Fixa" :
+    const cat = h.category === "crypto" || h.market === "crypto" ? "Cripto" : 
+                h.category === "stocks" || h.market === "variable_income" ? "Renda Variável" : 
+                h.category === "fixed_income" || h.market === "fixed_income" ? "Renda Fixa" :
                 h.category === "fii" ? "FIIs" :
-                h.category === "real_estate" ? "Imóveis" :
+                h.category === "real_estate" || h.market === "real_estate" ? "Imóveis" :
                 h.category === "cash" ? "Caixa" : "Outros";
     categoryTotals[cat] = (categoryTotals[cat] || 0) + h.value;
   });
