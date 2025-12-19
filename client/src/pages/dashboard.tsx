@@ -68,8 +68,9 @@ export default function Dashboard() {
     }
   }, [summary?.holdings.length, history.length, historyLoading]);
 
-  // Calculate variations for history
+  // Calculate variations for history - filter to show only 2025 onwards
   const historyWithVariations: HistoryPoint[] = [...history]
+    .filter((point) => point.year >= 2025) // Only show data from 2025 onwards
     .sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
@@ -91,7 +92,7 @@ export default function Dashboard() {
       };
     });
 
-  // Show all available history from backend (automatically last 24 months)
+  // Show all available history from backend (2025 onwards from Atualizar Investimentos snapshots)
   const performanceData = historyWithVariations
     .map((h) => ({
       month: `${h.month}/${h.year.toString().slice(-2)}`,
