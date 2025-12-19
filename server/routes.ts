@@ -35,6 +35,24 @@ export async function registerRoutes(
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
+  app.get("/api/database-status", async (req, res) => {
+    try {
+      const { supabase } = await import("./supabase");
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .limit(1);
+
+      if (error) {
+        return res.json({ connected: false, error: error.message });
+      }
+
+      res.json({ connected: true });
+    } catch (error) {
+      res.json({ connected: false, error: String(error) });
+    }
+  });
+
   app.post("/login", (req, res) => {
     const { usernameOrEmail, password } = req.body;
     const result = validateCredentials(usernameOrEmail, password);
