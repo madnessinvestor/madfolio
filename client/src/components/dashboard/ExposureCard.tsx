@@ -80,17 +80,17 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
           {/* Pie Chart - Left Side */}
           {pieData.length > 0 && (
             <div className="flex items-center justify-center">
-              <div className="h-64 w-full">
+              <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 50 }}>
                     <Pie
                       data={pieData}
                       cx="50%"
-                      cy="45%"
+                      cy="50%"
                       labelLine={false}
                       label={renderCustomLabel}
-                      innerRadius={60}
-                      outerRadius={100}
+                      innerRadius={50}
+                      outerRadius={90}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -116,6 +116,7 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
                     <Legend 
                       verticalAlign="bottom" 
                       height={36}
+                      wrapperStyle={{ paddingTop: "10px" }}
                       formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
                     />
                   </PieChart>
