@@ -70,30 +70,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAsset(asset: InsertAsset): Promise<Asset> {
-    console.log(`[SUPABASE] Inserting asset into 'assets' table:`, { 
-      userId: asset.userId, 
-      symbol: asset.symbol, 
-      name: asset.name,
-      market: asset.market 
-    });
+    console.log(`[SUPABASE] ========================================`);
+    console.log(`[SUPABASE] INSERTING INTO: 'assets' table`);
+    console.log(`[SUPABASE] User ID:`, asset.userId);
+    console.log(`[SUPABASE] Symbol:`, asset.symbol);
+    console.log(`[SUPABASE] Name:`, asset.name);
+    console.log(`[SUPABASE] Market:`, asset.market);
+    console.log(`[SUPABASE] Quantity:`, asset.quantity);
+    console.log(`[SUPABASE] Currency:`, asset.currency);
     try {
       const [newAsset] = await db.insert(assets).values(asset).returning();
-      console.log(`[SUPABASE] ✓ Asset created successfully with ID:`, newAsset.id);
+      console.log(`[SUPABASE] ✓ SUCCESS - Asset ID:`, newAsset.id);
+      console.log(`[SUPABASE] Timestamp:`, new Date().toISOString());
+      console.log(`[SUPABASE] ========================================`);
       return newAsset;
     } catch (error) {
-      console.error(`[SUPABASE] ✗ Error inserting asset:`, error);
+      console.error(`[SUPABASE] ✗ ERRO ao inserir asset:`, error);
+      console.error(`[SUPABASE] ========================================`);
       throw error;
     }
   }
 
   async updateAsset(id: string, asset: Partial<InsertAsset>): Promise<Asset | undefined> {
-    console.log(`[SUPABASE] Updating asset in 'assets' table:`, { id, updates: Object.keys(asset) });
+    console.log(`[SUPABASE] ========================================`);
+    console.log(`[SUPABASE] UPDATING: 'assets' table`);
+    console.log(`[SUPABASE] Asset ID:`, id);
+    console.log(`[SUPABASE] Fields updated:`, Object.keys(asset));
+    console.log(`[SUPABASE] Values:`, asset);
     try {
       const [updated] = await db.update(assets).set(asset).where(eq(assets.id, id)).returning();
-      console.log(`[SUPABASE] ✓ Asset updated successfully`);
+      console.log(`[SUPABASE] ✓ SUCCESS - Asset updated`);
+      console.log(`[SUPABASE] New Symbol:`, updated.symbol);
+      console.log(`[SUPABASE] Timestamp:`, new Date().toISOString());
+      console.log(`[SUPABASE] ========================================`);
       return updated;
     } catch (error) {
-      console.error(`[SUPABASE] ✗ Error updating asset:`, error);
+      console.error(`[SUPABASE] ✗ ERRO ao atualizar asset:`, error);
+      console.error(`[SUPABASE] ========================================`);
       throw error;
     }
   }
@@ -137,23 +150,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSnapshot(snapshot: InsertSnapshot): Promise<Snapshot> {
-    console.log(`[SUPABASE] Inserting snapshot into 'snapshots' table:`, { 
-      assetId: snapshot.assetId, 
-      date: snapshot.date,
-      value: snapshot.value
-    });
+    console.log(`[SUPABASE] ========================================`);
+    console.log(`[SUPABASE] INSERTING INTO: 'snapshots' table`);
+    console.log(`[SUPABASE] Asset ID:`, snapshot.assetId);
+    console.log(`[SUPABASE] Date:`, snapshot.date);
+    console.log(`[SUPABASE] Value (BRL):`, snapshot.value);
+    console.log(`[SUPABASE] Amount:`, snapshot.amount);
+    console.log(`[SUPABASE] Unit Price:`, snapshot.unitPrice);
     try {
       const [newSnapshot] = await db.insert(snapshots).values(snapshot).returning();
-      console.log(`[SUPABASE] ✓ Snapshot created successfully with ID:`, newSnapshot.id);
+      console.log(`[SUPABASE] ✓ SUCCESS - Snapshot ID:`, newSnapshot.id);
       
       const date = new Date(snapshot.date);
       const month = date.getMonth() + 1;
       const year = date.getFullYear();
       await this.updateMonthlyStatementFromSnapshots(month, year);
+      console.log(`[SUPABASE] ✓ Monthly statement updated for ${month}/${year}`);
+      console.log(`[SUPABASE] Timestamp:`, new Date().toISOString());
+      console.log(`[SUPABASE] ========================================`);
       
       return newSnapshot;
     } catch (error) {
-      console.error(`[SUPABASE] ✗ Error inserting snapshot:`, error);
+      console.error(`[SUPABASE] ✗ ERRO ao inserir snapshot:`, error);
+      console.error(`[SUPABASE] ========================================`);
       throw error;
     }
   }
@@ -265,13 +284,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWallet(wallet: InsertWallet): Promise<Wallet> {
-    console.log(`[SUPABASE] Inserting wallet into 'wallets' table:`, { userId: wallet.userId, name: wallet.name });
+    console.log(`[SUPABASE] ========================================`);
+    console.log(`[SUPABASE] INSERTING INTO: 'wallets' table`);
+    console.log(`[SUPABASE] User ID:`, wallet.userId);
+    console.log(`[SUPABASE] Name:`, wallet.name);
+    console.log(`[SUPABASE] Link:`, wallet.link);
+    console.log(`[SUPABASE] Platform:`, wallet.platform);
     try {
       const [newWallet] = await db.insert(wallets).values(wallet).returning();
-      console.log(`[SUPABASE] ✓ Wallet created successfully with ID:`, newWallet.id);
+      console.log(`[SUPABASE] ✓ SUCCESS - Wallet ID:`, newWallet.id);
+      console.log(`[SUPABASE] Timestamp:`, new Date().toISOString());
+      console.log(`[SUPABASE] ========================================`);
       return newWallet;
     } catch (error) {
-      console.error(`[SUPABASE] ✗ Error inserting wallet:`, error);
+      console.error(`[SUPABASE] ✗ ERRO ao inserir wallet:`, error);
+      console.error(`[SUPABASE] ========================================`);
       throw error;
     }
   }
@@ -301,9 +328,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
-    console.log(`[SUPABASE] Inserting activity log into 'activity_logs' table:`, { userId: log.userId, type: log.type });
+    console.log(`[SUPABASE] ========================================`);
+    console.log(`[SUPABASE] INSERTING INTO: 'activity_logs' table`);
+    console.log(`[SUPABASE] User ID:`, log.userId);
+    console.log(`[SUPABASE] Type:`, log.type);
+    console.log(`[SUPABASE] Category:`, log.category);
+    console.log(`[SUPABASE] Asset:`, log.assetName, `(${log.assetSymbol})`);
+    console.log(`[SUPABASE] Action:`, log.action);
     const [newLog] = await db.insert(activityLogs).values(log).returning();
-    console.log(`[SUPABASE] ✓ Activity log created with ID:`, newLog.id);
+    console.log(`[SUPABASE] ✓ SUCCESS - Activity Log ID:`, newLog.id);
+    console.log(`[SUPABASE] Timestamp:`, new Date().toISOString());
+    console.log(`[SUPABASE] ========================================`);
     return newLog;
   }
 
