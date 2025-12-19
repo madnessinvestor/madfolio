@@ -464,11 +464,24 @@ export class DatabaseStorage implements IStorage {
       // For each asset, find the latest snapshot up to end of this month
       Object.keys(snapshotsByAsset).forEach(assetId => {
         const assetSnapshots = snapshotsByAsset[assetId];
+        let foundSnapshot = null;
+        
+        // Look for latest snapshot up to end of this month
         for (let i = assetSnapshots.length - 1; i >= 0; i--) {
           if (new Date(assetSnapshots[i].date) <= lastDayOfMonth) {
-            totalValue += assetSnapshots[i].value;
+            foundSnapshot = assetSnapshots[i];
             break;
           }
+        }
+        
+        // If no snapshot found up to this month, use the earliest available snapshot
+        // This ensures values propagate forward even if there are no updates
+        if (!foundSnapshot && assetSnapshots.length > 0) {
+          foundSnapshot = assetSnapshots[0];
+        }
+        
+        if (foundSnapshot) {
+          totalValue += foundSnapshot.value;
         }
       });
       
@@ -531,15 +544,26 @@ export class DatabaseStorage implements IStorage {
       // For each asset, find the latest snapshot up to end of this month
       Object.keys(snapshotsByAsset).forEach(assetId => {
         const assetSnapshots = snapshotsByAsset[assetId];
+        let foundSnapshot = null;
+        
         // Find latest snapshot where date <= end of month, working backwards
         for (let i = assetSnapshots.length - 1; i >= 0; i--) {
           if (new Date(assetSnapshots[i].date) <= endOfMonth) {
-            totalValue += assetSnapshots[i].value;
-            // Check if ANY snapshot in this month is locked
-            if (assetSnapshots[i].isLocked) {
-              isLocked = 1;
-            }
+            foundSnapshot = assetSnapshots[i];
             break;
+          }
+        }
+        
+        // If no snapshot found up to this month, use the earliest available snapshot
+        if (!foundSnapshot && assetSnapshots.length > 0) {
+          foundSnapshot = assetSnapshots[0];
+        }
+        
+        if (foundSnapshot) {
+          totalValue += foundSnapshot.value;
+          // Check if ANY snapshot in this month is locked
+          if (foundSnapshot.isLocked) {
+            isLocked = 1;
           }
         }
       });
