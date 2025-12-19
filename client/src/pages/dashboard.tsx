@@ -3,8 +3,7 @@ import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
 import { PortfolioHoldings } from "@/components/dashboard/PortfolioHoldings";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
-import { BulkUpdateDialog } from "@/components/dashboard/BulkUpdateDialog";
-import { Wallet, TrendingUp, Landmark, BarChart3, Building2, Calendar } from "lucide-react";
+import { Wallet, TrendingUp, Landmark, BarChart3, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -50,7 +49,6 @@ export default function Dashboard() {
   const { displayCurrency, isBalanceHidden } = useDisplayCurrency();
   const { formatCurrency } = useCurrencyConverter();
   const [, navigate] = useLocation();
-  const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
@@ -195,15 +193,6 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Visão geral do seu portfólio</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            onClick={() => setBulkUpdateOpen(true)}
-            variant="outline"
-            className="gap-2"
-            data-testid="button-bulk-update"
-          >
-            <Calendar className="h-4 w-4" />
-            Atualizar Investimentos
-          </Button>
           <AddInvestmentDialog onAdd={handleAddInvestment} onAddSnapshot={handleAddSnapshot} isLoading={createInvestmentMutation.isPending || createSnapshotMutation.isPending} />
         </div>
       </div>
@@ -283,8 +272,6 @@ export default function Dashboard() {
         formatCurrency={format}
         isHidden={isBalanceHidden}
       />
-
-      <BulkUpdateDialog open={bulkUpdateOpen} onOpenChange={setBulkUpdateOpen} />
     </div>
   );
 }
