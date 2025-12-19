@@ -1,82 +1,176 @@
-# InvestTracker - Portfolio Management Application
+# Replit Project Documentation - Portfolio Tracker
 
-## Overview
+## Project Overview
 
-InvestTracker is a personal investment portfolio tracking web application that allows users to manually track their cryptocurrency and traditional market investments. It functions as a manual portfolio tracker (similar to Blockfolio) without blockchain/wallet connections. Users input investment values manually, and the system maintains historical records, generates charts, and provides monthly statements to track portfolio evolution over time.
+**Portfolio Tracker** é uma aplicação full-stack para rastreamento de investimentos em criptomoedas e mercado tradicional.
 
-Key features:
-- Manual asset registration across four market types:
-  - Crypto: Bitcoin, Ethereum, etc. (auto-priced via CoinGecko)
-  - Renda Variável: Brazilian stocks, FIIs, ETFs (auto-priced via BRAPI)
-  - Renda Fixa: CDBs, LCIs, LCAs, Tesouro Direto (manual entry only)
-  - Imóveis: Real estate properties (manual entry only)
-- Snapshot-based value tracking (each update creates history, no overwrites)
-- Automatic price updates for crypto and variable income assets
-- Manual value entry for fixed income and real estate investments
-- Portfolio performance visualization with charts
-- Monthly statement generation
+- **Status**: Desenvolvimento ativo
+- **Type**: Full-Stack JavaScript (React + Express + PostgreSQL)
+- **Database**: Neon PostgreSQL
+- **Authentication**: Replit Auth + Local Credentials
+- **Deployment**: Replit autoscale
+
+## Architecture
+
+### Frontend
+- **Framework**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **State**: TanStack Query v5
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Routing**: wouter
+
+### Backend
+- **Runtime**: Node.js 20
+- **Framework**: Express
+- **ORM**: Drizzle ORM
+- **Database**: PostgreSQL (Neon)
+- **Auth**: Replit Auth + Passport.js
+
+### Database
+- PostgreSQL via Neon
+- Schema managed by Drizzle ORM
+- Tables: users, sessions, assets, snapshots, wallets, portfolios, activities, monthly_statements
+
+## Recent Changes
+
+### Dec 19, 2025
+- Migrated project to Replit environment
+- Set up Node.js 20 module
+- Configured npm run dev workflow
+- Created admin user (madnessinvestor)
+- Prepared project for GitHub deployment
+- Created `.gitignore`, `.env.example`, `README.md`, `SETUP.md`
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+- Portuguese language for UI and documentation
+- Full-stack approach with frontend-heavy architecture
+- Use shadcn/ui + Tailwind CSS for styling
+- Follow modern web app patterns
 
-## System Architecture
+## Key Files
 
-### Frontend Architecture
-- **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight React router)
-- **State Management**: TanStack React Query for server state
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS with CSS variables for theming (light/dark mode support)
-- **Charts**: Recharts library for data visualization (line charts, pie charts, bar charts)
-- **Build Tool**: Vite with React plugin
+- `shared/schema.ts` - Drizzle ORM schemas
+- `server/index.ts` - Express server entry point
+- `server/routes.ts` - API routes
+- `server/storage.ts` - Database storage layer
+- `client/src/App.tsx` - React app entry point
+- `client/src/pages/` - Page components
+- `drizzle.config.ts` - Drizzle configuration (DO NOT EDIT)
+- `vite.config.ts` - Vite configuration (DO NOT EDIT)
 
-### Backend Architecture
-- **Framework**: Express.js with TypeScript
-- **API Pattern**: RESTful JSON API with `/api` prefix
-- **Authentication**: Replit Auth integration using OpenID Connect with Passport.js
-- **Session Management**: PostgreSQL-backed sessions via connect-pg-simple
+## Environment Variables
 
-### Data Storage
-- **Database**: PostgreSQL
-- **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema Location**: `shared/schema.ts` (shared between client and server)
-- **Key Tables**:
-  - `assets`: Investment holdings with quantity, acquisition price, current price
-  - `snapshots`: Historical value records for assets
-  - `monthly_statements`: Aggregated monthly portfolio summaries
-  - `users` and `sessions`: Authentication tables (required for Replit Auth)
+Required:
+- `DATABASE_URL` - PostgreSQL connection string
+- `NODE_ENV` - development/production
 
-### Build and Deployment
-- **Development**: `tsx` for TypeScript execution, Vite dev server with HMR
-- **Production Build**: esbuild for server bundling, Vite for client bundling
-- **Output**: `dist/` directory with `index.cjs` (server) and `public/` (static assets)
+Optional:
+- `PORT` - Server port (default: 5000)
+- `REPLIT_IDENTITY_PROVIDER` - For Replit Auth
 
-### Design System
-- Material Design 3 inspired with fintech adaptations
-- Inter font family for data-heavy interfaces
-- Responsive grid layout (12-column on desktop, stacked on mobile)
-- Color scheme uses CSS custom properties for theme switching
+## Running the Project
 
-## External Dependencies
+```bash
+# Development
+npm run dev
 
-### Third-Party APIs
-- **CoinGecko API**: Free cryptocurrency price data (`https://api.coingecko.com/api/v3`)
-- **BRAPI**: Brazilian stock market data (`https://brapi.dev/api`)
+# Build
+npm run build
 
-### Database
-- **PostgreSQL**: Required for data persistence and session storage
-- Connection via `DATABASE_URL` environment variable
-- Schema migrations via `drizzle-kit push`
+# Production
+npm run start
 
-### Authentication
-- **Replit Auth**: OpenID Connect provider for user authentication
-- Requires `ISSUER_URL`, `REPL_ID`, and `SESSION_SECRET` environment variables
+# Database sync
+npm run db:push
+```
 
-### Key NPM Packages
-- `drizzle-orm` / `drizzle-kit`: Database ORM and migrations
-- `@tanstack/react-query`: Async state management
-- `@radix-ui/*`: Accessible UI primitives
-- `recharts`: Charting library
-- `passport` / `openid-client`: Authentication
-- `express-session` / `connect-pg-simple`: Session management
+## Database Schema
+
+### Core Tables
+
+**users**
+- id (UUID, PK)
+- email (unique)
+- username (unique)
+- passwordHash
+- firstName, lastName
+- profileImageUrl
+- authProvider (local/google/replit)
+- createdAt, updatedAt
+
+**assets**
+- id (UUID, PK)
+- userId
+- symbol, name
+- category (crypto/fixed-income/variable-income)
+- market (crypto/traditional)
+- quantity, acquisitionPrice
+- currentPrice
+- lastPriceUpdate
+
+**snapshots**
+- id (UUID, PK)
+- assetId (FK → assets)
+- value, amount, unitPrice
+- date
+
+**wallets**
+- id (UUID, PK)
+- userId
+- name, link
+- platform (debank/step)
+
+**portfolio_history**
+- id (UUID, PK)
+- userId
+- totalValue, month, year
+- date
+
+**activity_logs**
+- id (UUID, PK)
+- userId, assetId
+- type, action, details
+- createdAt
+
+## Workflow Configuration
+
+**Current Workflow**: "Start application"
+- Command: `npm run dev`
+- Output: webview
+- Port: 5000
+- Status: Running
+
+## Important Notes
+
+- `.replit` file should not be edited directly via tools (use workflow config)
+- Don't modify `vite.config.ts` or `server/vite.ts` - already properly configured
+- Don't edit `package.json` scripts without user approval
+- Don't modify `drizzle.config.ts`
+- Always use `npm run db:push` for database schema changes
+- Use `.env.local` for local development settings (not committed)
+
+## Future Enhancements
+
+- [ ] Price update automation
+- [ ] Multiple portfolio views
+- [ ] Export reports to PDF
+- [ ] Mobile app
+- [ ] Email notifications
+- [ ] Advanced analytics
+
+## Deployment
+
+The project is configured for Replit autoscale deployment:
+- Build: `npm run build`
+- Start: `node ./dist/index.cjs`
+- Database: Uses DATABASE_URL environment variable
+
+## Admin Credentials
+
+Default admin user created for development:
+- Username: madnessinvestor
+- Email: madnessinvestor@yahoo.com
+- Password: 123456
+
+**Change these credentials before production deployment!**
