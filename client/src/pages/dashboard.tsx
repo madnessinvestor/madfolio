@@ -63,11 +63,11 @@ export default function Dashboard() {
     queryKey: ["/api/snapshots/month-status", currentYear],
   });
 
-  // Calculate variations for history - show all available data from 2025 onwards
+  // Calculate variations for history - show all available data (at least 36 months)
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   
   const historyWithVariations: HistoryPoint[] = [...history]
-    .filter((point) => point.year >= 2025) // Show all data from 2025 onwards
+    .filter((point) => point.year >= 2022) // Show all data from 2022 onwards to ensure at least 36 months
     .sort((a, b) => {
       if (a.year !== b.year) return a.year - b.year;
       // Parse month string to number for proper sorting
@@ -91,12 +91,8 @@ export default function Dashboard() {
       };
     });
 
-  // Show only locked/saved months from backend - format as "Jan/25", "Fev/25", etc.
+  // Show all months from backend - format as "Jan/25", "Fev/25", etc. (at least 36 months)
   const performanceData = historyWithVariations
-    .filter((h) => {
-      const monthIndex = parseInt(h.month) - 1;
-      return monthStatus[monthIndex] === true; // Only include locked months
-    })
     .map((h) => {
       const monthIndex = parseInt(h.month) - 1;
       const monthName = monthIndex >= 0 && monthIndex < 12 ? monthNames[monthIndex] : h.month;
