@@ -119,8 +119,13 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      toast({
+        title: "Valor atualizado",
+        description: "O lançamento foi registrado no histórico.",
+      });
     },
     onError: () => {
       toast({
@@ -230,6 +235,7 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                       {monthNames.map((_, idx) => {
                         const monthKey = idx.toString();
                         const date = monthDates[monthKey] || "";
+                        const formattedDate = date ? new Date(date + "T00:00:00").toLocaleDateString("pt-BR") : "-";
                         
                         return (
                           <th key={idx} className="px-2 py-2 text-center font-semibold min-w-[110px] border-r">
@@ -241,6 +247,7 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                               className="text-xs h-7"
                               data-testid={`input-month-date-${monthKey}`}
                             />
+                            <div className="text-xs text-muted-foreground mt-1">{formattedDate}</div>
                           </th>
                         );
                       })}
