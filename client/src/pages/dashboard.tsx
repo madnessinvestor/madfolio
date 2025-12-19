@@ -58,6 +58,11 @@ export default function Dashboard() {
     queryKey: ["/api/portfolio/history"],
   });
 
+  const currentYear = new Date().getFullYear().toString();
+  const { data: monthStatus = {} } = useQuery<Record<number, boolean>>({
+    queryKey: ["/api/snapshots/month-status", currentYear],
+  });
+
   // Calculate variations for history - show all available data from 2025 onwards
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   
@@ -91,11 +96,13 @@ export default function Dashboard() {
     .map((h) => {
       const monthIndex = parseInt(h.month) - 1;
       const monthName = monthIndex >= 0 && monthIndex < 12 ? monthNames[monthIndex] : h.month;
+      const isLocked = monthStatus[monthIndex] || false;
       return {
         month: `${monthName}/${h.year.toString().slice(-2)}`,
         value: h.value,
         variation: h.variation,
         variationPercent: h.variationPercent,
+        isLocked,
       };
     });
 
@@ -238,7 +245,8 @@ export default function Dashboard() {
           <Skeleton className="h-96 rounded-lg" />
         ) : performanceData.length > 0 ? (
           <PerformanceChart 
-            data={performanceData} 
+            data={performanceData}
+            monthStatus={monthStatus}
             onViewDetails={() => navigate("/monthly-snapshots")}
           />
         ) : (

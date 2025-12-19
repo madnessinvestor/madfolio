@@ -20,15 +20,17 @@ interface PerformanceDataPoint {
   value: number;
   variation?: number;
   variationPercent?: number;
+  isLocked?: boolean;
 }
 
 interface PerformanceChartProps {
   data: PerformanceDataPoint[];
   title?: string;
+  monthStatus?: Record<number, boolean>;
   onViewDetails?: () => void;
 }
 
-export function PerformanceChart({ data, title = "Evolução do Portfólio", onViewDetails }: PerformanceChartProps) {
+export function PerformanceChart({ data, title = "Evolução do Portfólio", monthStatus = {}, onViewDetails }: PerformanceChartProps) {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   const formatCurrency = (value: number) => {
@@ -43,6 +45,17 @@ export function PerformanceChart({ data, title = "Evolução do Portfólio", onV
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
+      const isLocked = dataPoint.isLocked || false;
+      
+      if (!isLocked) {
+        return (
+          <div className="bg-popover border border-border p-3 rounded-lg shadow-lg">
+            <p className="font-semibold text-foreground mb-2">{label}</p>
+            <p className="text-sm text-muted-foreground italic">Não calculado ainda</p>
+          </div>
+        );
+      }
+
       const isPositive = (dataPoint.variation ?? 0) >= 0;
       const hasVariation = dataPoint.variation !== undefined && dataPoint.variation !== 0;
       
@@ -121,7 +134,21 @@ export function PerformanceChart({ data, title = "Evolução do Portfólio", onV
                     dataKey="value"
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
-                    dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
+                    dot={(props: any) => {
+                      const { cx, cy, payload } = props;
+                      const isLocked = payload?.isLocked || false;
+                      return (
+                        <circle
+                          key={`dot-${cx}`}
+                          cx={cx}
+                          cy={cy}
+                          r={4}
+                          fill={isLocked ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
+                          strokeWidth={2}
+                          stroke={isLocked ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))"}
+                        />
+                      );
+                    }}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
@@ -153,6 +180,15 @@ export function PerformanceChart({ data, title = "Evolução do Portfólio", onV
                     dataKey="value"
                     fill="hsl(var(--primary))"
                     radius={[4, 4, 0, 0]}
+                    shape={(props: any) => {
+                      const { x, y, width, height, payload } = props;
+                      const isLocked = payload?.isLocked || false;
+                      const barColor = isLocked ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))";
+                      const opacity = isLocked ? 1 : 0.4;
+                      return (
+                        <rect key={`bar-${x}`} x={x} y={y} width={width} height={height} fill={barColor} opacity={opacity} rx={4} ry={4} />
+                      );
+                    }}
                   />
                 </BarChart>
               </ResponsiveContainer>
