@@ -66,7 +66,6 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
   }));
 
   const renderCustomLabel = ({ percent }: { percent: number }) => {
-    if (percent < 0.05) return null;
     return `${((percent * 100).toFixed(1)).replace('.', ',')}%`;
   };
 
@@ -79,18 +78,18 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Pie Chart - Left Side */}
           {pieData.length > 0 && (
-            <div className="flex items-center justify-center">
-              <div className="h-80 w-full">
+            <div className="flex flex-col items-center">
+              <div className="h-96 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 50 }}>
+                  <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 60 }}>
                     <Pie
                       data={pieData}
                       cx="50%"
-                      cy="50%"
+                      cy="45%"
                       labelLine={false}
                       label={renderCustomLabel}
-                      innerRadius={50}
-                      outerRadius={90}
+                      innerRadius={55}
+                      outerRadius={110}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -115,8 +114,8 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
                     />
                     <Legend 
                       verticalAlign="bottom" 
-                      height={36}
-                      wrapperStyle={{ paddingTop: "10px" }}
+                      height={40}
+                      wrapperStyle={{ paddingTop: "20px", paddingBottom: "10px" }}
                       formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
                     />
                   </PieChart>
