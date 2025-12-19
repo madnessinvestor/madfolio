@@ -293,7 +293,6 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                         return (
                           <th key={idx} className="px-2 py-2 text-center font-semibold min-w-[110px] border-r">
                             <div className="text-xs font-medium mb-1">{monthShortNames[idx]}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{formattedDate}</div>
                             <div className="text-xs font-semibold mt-2 text-foreground">{formatCurrencyValue(monthTotal)}</div>
                             {idx > 0 && (
                               <>
@@ -325,7 +324,7 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                           
                           return (
                             <td key={monthIdx} className="px-2 py-3 border-r">
-                              <div className="relative">
+                              <div className="relative space-y-2">
                                 <Input
                                   value={value}
                                   onChange={(e) => handleUpdate(monthKey, asset.id, e.target.value)}
@@ -333,8 +332,17 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
                                   className="text-right text-sm w-full"
                                   data-testid={`input-snapshot-${monthKey}-${asset.id}`}
                                 />
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Data:</Label>
+                                  <Input
+                                    type="date"
+                                    value={monthDates[monthKey] || ""}
+                                    onChange={(e) => handleMonthDateChange(monthKey, e.target.value)}
+                                    className="h-7 text-[10px] px-2"
+                                  />
+                                </div>
                                 {isSaving && (
-                                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                  <div className="absolute right-2 top-4 transform -translate-y-1/2">
                                     <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                                   </div>
                                 )}
