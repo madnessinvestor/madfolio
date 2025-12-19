@@ -21,9 +21,6 @@ pnpm-debug.log*
 tsconfig.tsbuildinfo
 .vite/
 coverage/
-app.db
 eng.traineddata
-admin-seed.json
-ADMIN_CREDENTIALS.md
 attached_assets/
 .git/
