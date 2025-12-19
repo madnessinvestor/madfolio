@@ -948,16 +948,15 @@ export async function registerRoutes(
       const savedHistory = await storage.getPortfolioHistory(userId);
       const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
       
-      // Also get month lock status to filter only locked months
+      // Also get month lock status for isLocked field
       const historyByMonth = await storage.getPortfolioHistoryByMonth(userId);
-      const lockedMonths = new Set(historyByMonth
-        .filter(h => h.isLocked === 1)
-        .map(h => `${h.year}-${h.month}`)
+      const lockedMonths = new Map(historyByMonth
+        .map(h => [`${h.year}-${h.month}`, h.isLocked === 1])
       );
       
-      // Filter saved history to only include data from locked months (confirmed/saved months)
+      // Format history - return ALL available data, not just locked months
       const formattedHistory = savedHistory
-        .filter(h => h && h.year && h.month && lockedMonths.has(`${h.year}-${h.month}`))
+        .filter(h => h && h.year && h.month)
         .sort((a, b) => {
           if (a.year !== b.year) return a.year - b.year;
           return a.month - b.month;
@@ -966,6 +965,7 @@ export async function registerRoutes(
           // Ensure month is within valid range (1-12)
           const monthIndex = Math.max(0, Math.min(11, h.month - 1));
           const prevValue = index > 0 ? array[index - 1].totalValue : 0;
+          const isLocked = lockedMonths.get(`${h.year}-${h.month}`) || false;
           return {
             id: h.id || `${h.year}-${h.month}`,
             date: h.date,
@@ -973,7 +973,7 @@ export async function registerRoutes(
             year: h.year,
             value: h.totalValue || 0,
             totalValue: h.totalValue || 0,
-            isLocked: 1,
+            isLocked: isLocked ? 1 : 0,
             variation: prevValue > 0 ? ((h.totalValue - prevValue) / prevValue) * 100 : 0,
             variationPercent: prevValue > 0 ? ((h.totalValue - prevValue) / prevValue) * 100 : 0
           };

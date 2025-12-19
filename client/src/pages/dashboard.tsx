@@ -97,16 +97,12 @@ export default function Dashboard() {
       };
     });
 
-  // Show only locked/blocked months from backend - format as "Jan/25", "Fev/25", etc.
+  // Show ALL months from history (including unlocked months) - format as "Jan/25", "Fev/25", etc.
   const performanceData = historyWithVariations
-    .filter((h) => {
-      const monthIndex = monthNameToIndex(h.month);
-      return monthStatus[monthIndex] === true; // Only include locked months
-    })
     .map((h) => {
       const monthIndex = monthNameToIndex(h.month);
       const monthName = monthIndex >= 0 && monthIndex < 12 ? monthNames[monthIndex] : h.month;
-      const isLocked = monthStatus[monthIndex] || false;
+      const isLocked = h.isLocked === 1 || false;
       return {
         month: `${monthName}/${h.year.toString().slice(-2)}`,
         value: h.value,
