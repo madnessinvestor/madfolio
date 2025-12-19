@@ -51,7 +51,7 @@ const menuItems = [
     icon: Building2,
   },
   {
-    title: "Evolução Patrimonial",
+    title: "Evolução do Portfólio",
     url: "/history",
     icon: History,
   },

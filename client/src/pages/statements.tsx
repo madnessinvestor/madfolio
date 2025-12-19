@@ -136,7 +136,7 @@ export default function StatementsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Extratos Mensais</h1>
-          <p className="text-muted-foreground">Acompanhe a evolução do seu patrimônio mês a mês</p>
+          <p className="text-muted-foreground">Acompanhe a evolução do seu portfólio mês a mês</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={yearFilter} onValueChange={setYearFilter}>
@@ -266,7 +266,7 @@ export default function StatementsPage() {
       {isLoading ? (
         <Skeleton className="h-80 rounded-lg" />
       ) : performanceData.length > 0 ? (
-        <PerformanceChart data={performanceData} title="Evolução Mensal" />
+        <PerformanceChart data={performanceData} title="Evolução do Portfólio" />
       ) : (
         <div className="h-64 rounded-lg border flex items-center justify-center text-muted-foreground">
           Adicione lançamentos para ver a evolução mensal

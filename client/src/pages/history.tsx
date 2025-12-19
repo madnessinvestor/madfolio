@@ -42,12 +42,12 @@ export default function HistoryPage() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Evolução do Patrimônio</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Evolução do Portfólio</h1>
         <p className="text-muted-foreground">Acompanhe o crescimento da sua carteira mês a mês.</p>
       </div>
 
       {chartData.length > 0 && (
-        <PerformanceChart data={chartData} title="Evolução Patrimonial" />
+        <PerformanceChart data={chartData} title="Evolução do Portfólio" />
       )}
 
       <Card>

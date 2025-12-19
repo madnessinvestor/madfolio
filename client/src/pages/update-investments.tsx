@@ -189,7 +189,7 @@ export default function UpdateInvestmentsPage() {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold">Atualizar Investimentos</h1>
-        <p className="text-secondary mt-2">Atualize valores por mês e acompanhe a evolução do seu patrimônio</p>
+        <p className="text-secondary mt-2">Atualize valores por mês e acompanhe a evolução do seu portfólio</p>
       </div>
 
       <Card>

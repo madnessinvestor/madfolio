@@ -24,7 +24,7 @@ interface PerformanceChartProps {
   title?: string;
 }
 
-export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: PerformanceChartProps) {
+export function PerformanceChart({ data, title = "Evolução do Portfólio" }: PerformanceChartProps) {
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
