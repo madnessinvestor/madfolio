@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { AlertCircle, Calendar, Loader2 } from "lucide-react";
+import { AlertCircle, Calendar, Loader2, Check, X } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 export default function UpdateInvestmentsPage() {
@@ -21,6 +21,7 @@ export default function UpdateInvestmentsPage() {
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [updateDate, setUpdateDate] = useState("");
   const [quantity, setQuantity] = useState<string>("");
+  const [preview, setPreview] = useState<{ price: number; total: number } | null>(null);
 
   const { data: assets = [], isLoading: assetsLoading } = useQuery<Asset[]>({
     queryKey: ["/api/assets"],
@@ -33,10 +34,39 @@ export default function UpdateInvestmentsPage() {
 
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
 
-  const updateMutation = useMutation({
+  const previewMutation = useMutation({
     mutationFn: async () => {
       if (!selectedAssetId || !updateDate) {
         throw new Error("Por favor, selecione um ativo e uma data");
+      }
+
+      // This is a preview call - we'll use the same endpoint but just fetch the price
+      const response = await apiRequest(
+        "POST",
+        `/api/investments/${selectedAssetId}/preview-historical`,
+        {
+          updateDate,
+          quantity: quantity ? parseFloat(quantity) : selectedAsset?.quantity,
+        }
+      );
+      return response;
+    },
+    onSuccess: (data: any) => {
+      setPreview(data);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao carregar preview",
+        description: error?.message || "Não foi possível carregar dados históricos",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedAssetId || !updateDate || !preview) {
+        throw new Error("Por favor, complete o preview antes de salvar");
       }
 
       const payload = {
@@ -56,9 +86,12 @@ export default function UpdateInvestmentsPage() {
         description: "Investimento atualizado com dados históricos",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
       setSelectedAssetId("");
       setUpdateDate("");
       setQuantity("");
+      setPreview(null);
     },
     onError: (error: any) => {
       toast({
@@ -69,6 +102,13 @@ export default function UpdateInvestmentsPage() {
       });
     },
   });
+
+  const handleClearChanges = () => {
+    setPreview(null);
+    setSelectedAssetId("");
+    setUpdateDate("");
+    setQuantity("");
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -152,26 +192,80 @@ export default function UpdateInvestmentsPage() {
                 />
               </div>
 
-              <Button
-                onClick={() => updateMutation.mutate()}
-                disabled={
-                  !selectedAssetId ||
-                  !updateDate ||
-                  updateMutation.isPending ||
-                  assetsLoading
-                }
-                className="w-full"
-                data-testid="button-update-investment"
-              >
-                {updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Buscando histórico...
-                  </>
-                ) : (
-                  "Atualizar Investimento"
-                )}
-              </Button>
+              {!preview ? (
+                <Button
+                  onClick={() => previewMutation.mutate()}
+                  disabled={
+                    !selectedAssetId ||
+                    !updateDate ||
+                    previewMutation.isPending ||
+                    assetsLoading
+                  }
+                  className="w-full"
+                  data-testid="button-preview-investment"
+                >
+                  {previewMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Carregando préview...
+                    </>
+                  ) : (
+                    "Visualizar Alterações"
+                  )}
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                      Préview das Alterações
+                    </p>
+                    <div className="text-sm space-y-1">
+                      <p className="text-blue-800 dark:text-blue-200">
+                        Ativo: <span className="font-semibold">{selectedAsset?.symbol}</span>
+                      </p>
+                      <p className="text-blue-800 dark:text-blue-200">
+                        Data: <span className="font-semibold">{new Date(updateDate).toLocaleDateString("pt-BR")}</span>
+                      </p>
+                      <p className="text-blue-800 dark:text-blue-200">
+                        Preço Histórico: <span className="font-semibold">R$ {preview.price.toFixed(2)}</span>
+                      </p>
+                      <p className="text-blue-800 dark:text-blue-200">
+                        Valor Total: <span className="font-semibold">R$ {preview.total.toFixed(2)}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => updateMutation.mutate()}
+                      disabled={updateMutation.isPending}
+                      className="flex-1"
+                      data-testid="button-save-changes"
+                    >
+                      {updateMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          Salvar Alterações
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleClearChanges}
+                      disabled={updateMutation.isPending}
+                      variant="outline"
+                      className="flex-1"
+                      data-testid="button-cancel-changes"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
