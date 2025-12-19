@@ -27,7 +27,8 @@ interface Asset {
   symbol: string;
   name: string;
   market: string;
-  currentPrice: number;
+  quantity: number;
+  currentPrice: number | null;
 }
 
 interface SnapshotUpdate {
@@ -82,7 +83,8 @@ export function BulkUpdateDialog({ open, onOpenChange }: BulkUpdateDialogProps) 
         newMonthUpdates[monthKey] = {};
         assets.forEach((asset) => {
           const monthData = yearSnapshots[asset.id]?.[month];
-          const value = monthData?.value || asset.currentPrice || 0;
+          // Se tem snapshot, usa o valor do snapshot. Senão, calcula quantity × currentPrice
+          const value = monthData?.value || ((asset.quantity || 0) * (asset.currentPrice || 0)) || 0;
           newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(value);
         });
       }
