@@ -70,13 +70,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAsset(asset: InsertAsset): Promise<Asset> {
-    const [newAsset] = await db.insert(assets).values(asset).returning();
-    return newAsset;
+    console.log(`[SUPABASE] Inserting asset into 'assets' table:`, { 
+      userId: asset.userId, 
+      symbol: asset.symbol, 
+      name: asset.name,
+      market: asset.market 
+    });
+    try {
+      const [newAsset] = await db.insert(assets).values(asset).returning();
+      console.log(`[SUPABASE] ✓ Asset created successfully with ID:`, newAsset.id);
+      return newAsset;
+    } catch (error) {
+      console.error(`[SUPABASE] ✗ Error inserting asset:`, error);
+      throw error;
+    }
   }
 
   async updateAsset(id: string, asset: Partial<InsertAsset>): Promise<Asset | undefined> {
-    const [updated] = await db.update(assets).set(asset).where(eq(assets.id, id)).returning();
-    return updated;
+    console.log(`[SUPABASE] Updating asset in 'assets' table:`, { id, updates: Object.keys(asset) });
+    try {
+      const [updated] = await db.update(assets).set(asset).where(eq(assets.id, id)).returning();
+      console.log(`[SUPABASE] ✓ Asset updated successfully`);
+      return updated;
+    } catch (error) {
+      console.error(`[SUPABASE] ✗ Error updating asset:`, error);
+      throw error;
+    }
   }
 
   async deleteAsset(id: string): Promise<boolean> {
@@ -118,14 +137,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSnapshot(snapshot: InsertSnapshot): Promise<Snapshot> {
-    const [newSnapshot] = await db.insert(snapshots).values(snapshot).returning();
-    
-    const date = new Date(snapshot.date);
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-    await this.updateMonthlyStatementFromSnapshots(month, year);
-    
-    return newSnapshot;
+    console.log(`[SUPABASE] Inserting snapshot into 'snapshots' table:`, { 
+      assetId: snapshot.assetId, 
+      date: snapshot.date,
+      value: snapshot.value
+    });
+    try {
+      const [newSnapshot] = await db.insert(snapshots).values(snapshot).returning();
+      console.log(`[SUPABASE] ✓ Snapshot created successfully with ID:`, newSnapshot.id);
+      
+      const date = new Date(snapshot.date);
+      const month = date.getMonth() + 1;
+      const year = date.getFullYear();
+      await this.updateMonthlyStatementFromSnapshots(month, year);
+      
+      return newSnapshot;
+    } catch (error) {
+      console.error(`[SUPABASE] ✗ Error inserting snapshot:`, error);
+      throw error;
+    }
   }
 
   async deleteSnapshot(id: string): Promise<boolean> {
@@ -235,8 +265,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWallet(wallet: InsertWallet): Promise<Wallet> {
-    const [newWallet] = await db.insert(wallets).values(wallet).returning();
-    return newWallet;
+    console.log(`[SUPABASE] Inserting wallet into 'wallets' table:`, { userId: wallet.userId, name: wallet.name });
+    try {
+      const [newWallet] = await db.insert(wallets).values(wallet).returning();
+      console.log(`[SUPABASE] ✓ Wallet created successfully with ID:`, newWallet.id);
+      return newWallet;
+    } catch (error) {
+      console.error(`[SUPABASE] ✗ Error inserting wallet:`, error);
+      throw error;
+    }
   }
 
   async deleteWallet(id: string): Promise<boolean> {
@@ -264,7 +301,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
+    console.log(`[SUPABASE] Inserting activity log into 'activity_logs' table:`, { userId: log.userId, type: log.type });
     const [newLog] = await db.insert(activityLogs).values(log).returning();
+    console.log(`[SUPABASE] ✓ Activity log created with ID:`, newLog.id);
     return newLog;
   }
 

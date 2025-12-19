@@ -99,11 +99,14 @@ export async function registerRoutes(
 
   app.post("/api/assets", isAuthenticated, async (req: any, res) => {
     const userId = req.session?.userId || req.user?.claims?.sub;
+    console.log(`[API] POST /api/assets - userId:`, userId, "auth check passed");
     try {
       if (!userId) {
+        console.error(`[API] ✗ POST /api/assets - Missing userId`);
         return res.status(400).json({ error: "User ID is required" });
       }
       const validated = insertAssetSchema.parse(req.body);
+      console.log(`[API] ✓ Validation passed, saving asset to Supabase...`);
       const asset = await storage.createAsset({ ...validated, userId });
       
       const price = await fetchAssetPrice(asset.symbol, asset.market);
@@ -123,12 +126,14 @@ export async function registerRoutes(
       });
       
       const updatedAsset = await storage.getAsset(asset.id);
+      console.log(`[API] ✓ POST /api/assets complete - asset returned to client`);
       res.status(201).json(updatedAsset);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error(`[API] ✗ POST /api/assets - Validation error:`, error.errors);
         return res.status(400).json({ error: error.errors });
       }
-      console.error("Error creating asset:", error);
+      console.error("[API] ✗ POST /api/assets - Server error:", error);
       res.status(500).json({ error: "Failed to create asset" });
     }
   });
