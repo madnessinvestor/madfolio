@@ -20,51 +20,61 @@ Um aplicativo completo de rastreamento de portfólio que permite gerenciar inves
 - **State Management**: TanStack Query v5
 - **UI Components**: Shadcn/ui + Radix UI
 
-## Instalação
+## ⚡ Instalação Rápida
+
+### ⏱️ 1 Comando (5 segundos)
+
+```bash
+git clone <repository-url> && cd portfolio-tracker && npm install && npm run dev
+```
+
+Pronto! Abre em `http://localhost:5000`
+
+---
+
+## 📋 Setup Detalhado
 
 ### Pré-requisitos
 
 - Node.js 20+
-- Conta Supabase (free tier)
 - npm
 
-### Setup Local / GitHub
+### Opção 1: Automática (Recomendado)
 
-1. Clone o repositório:
+```bash
+# Clone
+git clone <repository-url>
+cd portfolio-tracker
+
+# Instale + Configure + Inicie
+npm install && npm run setup-env && npm run dev
+```
+
+### Opção 2: Manual
+
 ```bash
 git clone <repository-url>
 cd portfolio-tracker
-```
-
-2. Instale as dependências:
-```bash
 npm install
-```
 
-3. Configure Supabase (escolha um):
+# Copie o template
+cp .env.example .env
 
-**Opção A - Setup Interativo (recomendado):**
-```bash
-npm run setup-env
-# Coloque suas credenciais Supabase quando solicitado
-```
-
-**Opção B - Manual:**
-Crie arquivo `.env` com:
-```
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua-chave-anon
-DATABASE_URL=postgresql://postgres:sua-senha@db.seu-projeto.supabase.co:5432/postgres
-NODE_ENV=development
-PORT=5000
-```
-
-4. Inicie o servidor:
-```bash
+# Edite .env com suas credenciais do Supabase
+# Depois inicie:
 npm run dev
 ```
 
 O aplicativo estará disponível em `http://localhost:5000`
+
+---
+
+## 🔑 Credenciais Demo
+
+Se estiver usando as credenciais pré-configuradas:
+
+- **Email**: madnessinvestor@yahoo.com
+- **Senha**: 123456
 
 ### Obter Credenciais Supabase
 
