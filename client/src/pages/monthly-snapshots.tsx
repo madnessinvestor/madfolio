@@ -90,9 +90,9 @@ export default function MonthlySnapshotsPage() {
 
   const getMonthTotalValue = (month: number): number => {
     let total = 0;
-    const assetList = assets || [];
-    for (const asset of assetList) {
-      total += getMonthValue(asset.id, month);
+    const monthData = monthUpdates[month] || {};
+    for (const assetId in monthData) {
+      total += parseCurrencyValue(monthData[assetId]);
     }
     return total;
   };
