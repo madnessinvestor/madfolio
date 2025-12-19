@@ -49,3 +49,9 @@ waitForPort = 5000
 [agent]
 integrations = ["javascript_mem_db:1.0.0", "javascript_replit_auth:2.0.0"]
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://vpwxgwuduqqqxrnbimpi.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_1KDXWm6HRhnNfD7Y40EA7A_f9WhC60O"
