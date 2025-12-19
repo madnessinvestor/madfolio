@@ -35,16 +35,16 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   async getAssets(userId?: string): Promise<Asset[]> {
     if (userId) {
-      return db.select().from(assets).where(eq(assets.userId, userId)).orderBy(assets.symbol);
+      return db.select().from(assets).where(and(eq(assets.userId, userId), eq(assets.isDeleted, 0))).orderBy(assets.symbol);
     }
-    return db.select().from(assets).orderBy(assets.symbol);
+    return db.select().from(assets).where(eq(assets.isDeleted, 0)).orderBy(assets.symbol);
   }
 
   async getAssetsByMarket(market: string, userId?: string): Promise<Asset[]> {
     if (userId) {
-      return db.select().from(assets).where(and(eq(assets.market, market), eq(assets.userId, userId))).orderBy(assets.symbol);
+      return db.select().from(assets).where(and(eq(assets.market, market), eq(assets.userId, userId), eq(assets.isDeleted, 0))).orderBy(assets.symbol);
     }
-    return db.select().from(assets).where(eq(assets.market, market)).orderBy(assets.symbol);
+    return db.select().from(assets).where(and(eq(assets.market, market), eq(assets.isDeleted, 0))).orderBy(assets.symbol);
   }
 
   async getAsset(id: string): Promise<Asset | undefined> {
@@ -96,7 +96,7 @@ export class DatabaseStorage implements IStorage {
     
     for (const asset of allAssets) {
       const [latest] = await db.select().from(snapshots)
-        .where(eq(snapshots.assetId, asset.id))
+        .where(and(eq(snapshots.assetId, asset.id), eq(assets.isDeleted, 0)))
         .orderBy(desc(snapshots.date))
         .limit(1);
       if (latest) {
