@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Calendar, Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { Calendar, Loader2, TrendingUp, TrendingDown, Save } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 interface SnapshotUpdate {
@@ -41,6 +41,9 @@ export default function UpdateInvestmentsPage() {
   const [monthUpdates, setMonthUpdates] = useState<Record<string, Record<string, string>>>({});
   const [monthUpdateDates, setMonthUpdateDates] = useState<Record<string, string>>({});
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [isSavingAll, setIsSavingAll] = useState(false);
+  const originalDataRef = useRef<Record<string, Record<string, string>>>({});
 
   // Generate month sequence starting from December 2025
   const getMonthSequence = () => {
@@ -107,6 +110,8 @@ export default function UpdateInvestmentsPage() {
       setMonthDates(newMonthDates);
       setMonthUpdates(newMonthUpdates);
       setMonthUpdateDates(newMonthUpdateDates);
+      originalDataRef.current = JSON.parse(JSON.stringify(newMonthUpdates));
+      setHasPendingChanges(false);
     }
   }, [assets, selectedYear, yearSnapshots]);
 
@@ -161,13 +166,17 @@ export default function UpdateInvestmentsPage() {
   });
 
   const handleValueChange = (assetId: string, month: string, value: string) => {
-    setMonthUpdates((prev) => ({
-      ...prev,
-      [month]: {
-        ...prev[month],
-        [assetId]: value,
-      },
-    }));
+    setMonthUpdates((prev) => {
+      const newUpdates = {
+        ...prev,
+        [month]: {
+          ...prev[month],
+          [assetId]: value,
+        },
+      };
+      setHasPendingChanges(true);
+      return newUpdates;
+    });
 
     const cellKey = `${assetId}-${month}`;
     if (debounceTimerRef.current[cellKey]) {
@@ -196,6 +205,60 @@ export default function UpdateInvestmentsPage() {
     }, 500);
   };
 
+  const handleSaveAll = async () => {
+    setIsSavingAll(true);
+    try {
+      const updates: SnapshotUpdate[] = [];
+
+      for (const month of Object.keys(monthUpdates)) {
+        const monthData = monthUpdates[month];
+        for (const assetId of Object.keys(monthData)) {
+          const value = parseCurrencyValue(monthData[assetId]);
+          if (value > 0 && monthDates[month]) {
+            updates.push({
+              assetId,
+              value,
+              date: monthDates[month],
+            });
+          }
+        }
+      }
+
+      if (updates.length === 0) {
+        toast({
+          title: "Nenhuma alteração",
+          description: "Nenhum valor para salvar",
+        });
+        setIsSavingAll(false);
+        return;
+      }
+
+      for (const update of updates) {
+        await apiRequest("POST", "/api/snapshots", update);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+
+      toast({
+        title: "Sucesso",
+        description: `${updates.length} valores foram salvos com sucesso`,
+      });
+
+      setHasPendingChanges(false);
+      originalDataRef.current = JSON.parse(JSON.stringify(monthUpdates));
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar alterações",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
+
   const formatDateBR = (dateStr: string): string => {
     if (!dateStr) return "";
     const [year, month, day] = dateStr.split("-");
@@ -218,18 +281,31 @@ export default function UpdateInvestmentsPage() {
               <Calendar className="w-4 h-4" />
               Investimentos - {selectedYear}
             </CardTitle>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-40" data-testid="select-year">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              {hasPendingChanges && (
+                <Button 
+                  onClick={handleSaveAll}
+                  disabled={isSavingAll}
+                  className="gap-2"
+                  data-testid="button-save-all"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSavingAll ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              )}
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-40" data-testid="select-year">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
