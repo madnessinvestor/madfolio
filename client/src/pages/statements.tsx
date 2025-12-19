@@ -122,11 +122,39 @@ export default function StatementsPage() {
     ? ((totalVariation / statements[statements.length - 1].startValue) * 100)
     : 0;
 
-  const performanceData = history
-    .filter((h) => h.year.toString() === yearFilter)
+  // Get last 24 months of data
+  const sortedHistory = [...history].sort((a, b) => {
+    const aMonth = parseInt(a.month);
+    const bMonth = parseInt(b.month);
+    if (a.year !== b.year) return a.year - b.year;
+    return aMonth - bMonth;
+  });
+
+  // Calculate variations
+  const historyWithVariations = sortedHistory.map((item, index) => {
+    const prevItem = sortedHistory[index - 1];
+    const variation = prevItem ? item.value - prevItem.value : 0;
+    const variationPercent = prevItem && prevItem.value !== 0 
+      ? (variation / prevItem.value) * 100 
+      : 0;
+
+    return { 
+      ...item, 
+      variation, 
+      variationPercent 
+    };
+  });
+
+  // Get last 24 months
+  const last24Months = historyWithVariations.slice(Math.max(0, historyWithVariations.length - 24));
+
+  // Filter by year for summary cards, but use full 24 months for chart
+  const performanceData = last24Months
     .map((h) => ({
       month: h.month,
       value: h.value,
+      variation: h.variation,
+      variationPercent: h.variationPercent,
     }));
 
   const isLoading = statementsLoading || historyLoading;

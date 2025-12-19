@@ -22,10 +22,39 @@ export default function HistoryPage() {
     );
   }
 
-  const sortedHistory = [...(history || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Sort by date ascending for calculation purposes
+  const sortedAscending = [...(history || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const historyWithChanges = sortedHistory.map((item, index) => {
-    const nextItem = sortedHistory[index + 1];
+  // Calculate variations between consecutive months
+  const historyWithVariations = sortedAscending.map((item, index) => {
+    const prevItem = sortedAscending[index - 1];
+    const variation = prevItem ? item.totalValue - prevItem.totalValue : 0;
+    const variationPercent = prevItem && prevItem.totalValue !== 0 
+      ? (variation / prevItem.totalValue) * 100 
+      : 0;
+
+    return { 
+      ...item, 
+      variation, 
+      variationPercent 
+    };
+  });
+
+  // Get last 24 months for chart
+  const last24Months = historyWithVariations.slice(Math.max(0, historyWithVariations.length - 24));
+
+  const chartData = last24Months.map(item => ({
+    month: format(new Date(item.date), "MMM/yy", { locale: ptBR }),
+    value: item.totalValue,
+    variation: item.variation,
+    variationPercent: item.variationPercent
+  }));
+
+  // Sort descending for table display
+  const sortedDescending = [...last24Months].reverse();
+
+  const historyWithChanges = sortedDescending.map((item, index) => {
+    const nextItem = sortedDescending[index + 1];
     if (!nextItem) return { ...item, diff: 0, diffPercent: 0 };
 
     const diff = item.totalValue - nextItem.totalValue;
@@ -33,11 +62,6 @@ export default function HistoryPage() {
 
     return { ...item, diff, diffPercent };
   });
-
-  const chartData = [...sortedHistory].reverse().map(item => ({
-    month: format(new Date(item.date), "MMM/yy", { locale: ptBR }),
-    value: item.totalValue
-  }));
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
