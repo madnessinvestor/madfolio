@@ -1,7 +1,10 @@
-import { execSync } from "child_process";
+import { execSync, exec } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,21 +71,23 @@ export async function commitDatabaseChanges(message: string) {
         console.log(`[DB-SYNC] Commit skipped: ${message}`);
       }
       
-      // Try to push in background (non-blocking)
-      try {
-        // Set timeout to avoid hanging
-        execSync("timeout 5 git push --no-verify 2>/dev/null || true", { 
-          cwd: PROJECT_ROOT, 
-          stdio: "ignore",
-          timeout: 6000
-        });
-        console.log(`[DB-SYNC] ✓ Pushed to GitHub: ${message}`);
-      } catch (pushError) {
-        // Silently ignore push errors - data is already committed locally
-        console.log(`[DB-SYNC] ℹ Push skipped (remote may be offline)`);
-      }
+      // Push to remote in background (non-blocking) - don't await
+      pushToRemoteInBackground(message);
     }
   } catch (error) {
     // Silently ignore commit errors
   }
+}
+
+// Background push function - runs asynchronously without blocking
+function pushToRemoteInBackground(message: string) {
+  // Don't await this - let it run in background
+  execAsync("timeout 5 git push --no-verify 2>/dev/null || true", { cwd: PROJECT_ROOT })
+    .then(() => {
+      console.log(`[DB-SYNC] ✓ Pushed to GitHub: ${message}`);
+    })
+    .catch(() => {
+      // Silently ignore push errors - data is already committed locally
+      console.log(`[DB-SYNC] ℹ Push skipped (remote may be offline)`);
+    });
 }
