@@ -68,9 +68,9 @@ export default function Dashboard() {
     }
   }, [summary?.holdings.length, history.length, historyLoading]);
 
-  // Calculate variations for history - filter to show only 2025 onwards
+  // Calculate variations for history - filter to show only 2025 onwards AND only locked months
   const historyWithVariations: HistoryPoint[] = [...history]
-    .filter((point) => point.year >= 2025) // Only show data from 2025 onwards
+    .filter((point) => point.year >= 2025 && (point.isLocked === 1 || point.isLocked === true)) // Only locked data from 2025 onwards
     .sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();

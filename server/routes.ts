@@ -480,7 +480,7 @@ export async function registerRoutes(
       
       const snapshots = await storage.getSnapshotsByDateRange(startDate, endDate);
       
-      const assetMonthMap: Record<string, Record<number, { value: number; date: string }>> = {};
+      const assetMonthMap: Record<string, Record<number, { value: number; date: string; createdAt: string; isLocked: number }>> = {};
       
       snapshots.forEach(snapshot => {
         if (!assetMonthMap[snapshot.assetId]) {
@@ -493,7 +493,9 @@ export async function registerRoutes(
         if (!assetMonthMap[snapshot.assetId][month] || new Date(snapshot.date) > new Date(assetMonthMap[snapshot.assetId][month].date)) {
           assetMonthMap[snapshot.assetId][month] = {
             value: snapshot.value,
-            date: snapshot.date
+            date: snapshot.date,
+            createdAt: snapshot.createdAt ? snapshot.createdAt.toISOString() : new Date().toISOString(),
+            isLocked: snapshot.isLocked || 0
           };
         }
       });
@@ -501,6 +503,59 @@ export async function registerRoutes(
       res.json(assetMonthMap);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch snapshots for year" });
+    }
+  });
+
+  app.get("/api/snapshots/month-status/:year", async (req: any, res) => {
+    try {
+      const year = parseInt(req.params.year as string);
+      if (isNaN(year)) {
+        return res.status(400).json({ error: "Invalid year" });
+      }
+      
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      const snapshots = await storage.getSnapshotsByDateRange(startDate, endDate);
+      
+      const monthStatus: Record<number, boolean> = {};
+      for (let i = 0; i < 12; i++) {
+        monthStatus[i] = false;
+      }
+      
+      snapshots.forEach(snapshot => {
+        const date = new Date(snapshot.date);
+        const month = date.getMonth();
+        if (snapshot.isLocked) {
+          monthStatus[month] = true;
+        }
+      });
+      
+      res.json(monthStatus);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch month status" });
+    }
+  });
+
+  app.patch("/api/snapshots/month/lock", async (req: any, res) => {
+    try {
+      const { year, month, locked } = req.body;
+      if (year === undefined || month === undefined || locked === undefined) {
+        return res.status(400).json({ error: "year, month, and locked are required" });
+      }
+      
+      const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      
+      const snapshots = await storage.getSnapshotsByDateRange(startDate, endDate);
+      
+      for (const snapshot of snapshots) {
+        await storage.updateSnapshot(snapshot.id, { isLocked: locked ? 1 : 0 });
+      }
+      
+      res.json({ success: true, locked });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to lock/unlock month" });
     }
   });
 
@@ -672,16 +727,6 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching Jup.Ag portfolio:", error);
       res.status(500).json({ error: "Failed to fetch Jup.Ag portfolio" });
-    }
-  });
-
-  app.get("/api/portfolio/history", async (req: any, res) => {
-    const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
-    try {
-      const history = await storage.getPortfolioHistoryBySnapshots(userId);
-      res.json(history);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch portfolio history" });
     }
   });
 
@@ -857,6 +902,7 @@ export async function registerRoutes(
             year: h.year,
             value: h.value,
             totalValue: h.value,
+            isLocked: h.isLocked,
             variation: prevValue > 0 ? ((h.value - prevValue) / prevValue) * 100 : 0,
             variationPercent: prevValue > 0 ? ((h.value - prevValue) / prevValue) * 100 : 0
           };

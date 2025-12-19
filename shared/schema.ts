@@ -34,6 +34,7 @@ export const snapshots = sqliteTable("snapshots", {
   unitPrice: real("unit_price"),
   date: text("date").notNull(),
   notes: text("notes"),
+  isLocked: integer("is_locked").default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`),
 });
 

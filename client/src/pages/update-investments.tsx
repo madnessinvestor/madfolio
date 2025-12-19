@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Calendar, Loader2, TrendingUp, TrendingDown, Save } from "lucide-react";
+import { Calendar, Loader2, TrendingUp, TrendingDown, Save, Lock } from "lucide-react";
 import type { Asset } from "@shared/schema";
 
 interface SnapshotUpdate {
@@ -26,6 +26,7 @@ interface SnapshotData {
   value: number;
   date: string;
   createdAt: string;
+  isLocked: number;
 }
 
 const monthShortNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -40,23 +41,20 @@ export default function UpdateInvestmentsPage() {
   const [monthDates, setMonthDates] = useState<Record<string, string>>({});
   const [monthUpdates, setMonthUpdates] = useState<Record<string, Record<string, string>>>({});
   const [monthUpdateDates, setMonthUpdateDates] = useState<Record<string, string>>({});
+  const [monthLockedStatus, setMonthLockedStatus] = useState<Record<number, boolean>>({});
   const [savingCells, setSavingCells] = useState<Set<string>>(new Set());
-  const [hasPendingChanges, setHasPendingChanges] = useState(false);
-  const [isSavingAll, setIsSavingAll] = useState(false);
+  const [savingMonths, setSavingMonths] = useState<Set<number>>(new Set());
   const originalDataRef = useRef<Record<string, Record<string, string>>>({});
 
-  // Generate month sequence starting from December 2025
   const getMonthSequence = () => {
     const year = parseInt(selectedYear);
     const sequence = [];
     
     if (year === 2025) {
-      // For 2025, start from December (month 11)
       for (let i = 11; i < 12; i++) {
         sequence.push(i);
       }
     } else {
-      // For 2026 and onwards, show all 12 months
       for (let i = 0; i < 12; i++) {
         sequence.push(i);
       }
@@ -73,6 +71,14 @@ export default function UpdateInvestmentsPage() {
   const { data: yearSnapshots = {} } = useQuery<Record<string, Record<number, SnapshotData>>>({
     queryKey: ["/api/snapshots/year", selectedYear],
   });
+
+  const { data: monthStatus = {} } = useQuery<Record<number, boolean>>({
+    queryKey: ["/api/snapshots/month-status", selectedYear],
+  });
+
+  useEffect(() => {
+    setMonthLockedStatus(monthStatus);
+  }, [monthStatus]);
 
   useEffect(() => {
     if (assets.length > 0) {
@@ -93,7 +99,6 @@ export default function UpdateInvestmentsPage() {
           newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(value);
         });
 
-        // Get the most recent update date for this month across all assets
         let latestDate = "";
         for (const asset of assets) {
           const monthData = yearSnapshots[asset.id]?.[month];
@@ -111,7 +116,6 @@ export default function UpdateInvestmentsPage() {
       setMonthUpdates(newMonthUpdates);
       setMonthUpdateDates(newMonthUpdateDates);
       originalDataRef.current = JSON.parse(JSON.stringify(newMonthUpdates));
-      setHasPendingChanges(false);
     }
   }, [assets, selectedYear, yearSnapshots]);
 
@@ -156,16 +160,35 @@ export default function UpdateInvestmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
     },
+  });
+
+  const lockMonthMutation = useMutation({
+    mutationFn: async ({ year, month, locked }: { year: number; month: number; locked: boolean }) => {
+      return apiRequest("PATCH", "/api/snapshots/month/lock", { year, month, locked });
+    },
+    onSuccess: (_, { year, month, locked }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status", year.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year", year.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      
+      toast({
+        title: locked ? "Mês bloqueado" : "Mês desbloqueado",
+        description: locked ? `${monthShortNames[month]} ${year} está bloqueado` : `${monthShortNames[month]} ${year} foi desbloqueado`,
+      });
+    },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Falha ao atualizar valor",
+        description: "Falha ao bloquear/desbloquear mês",
         variant: "destructive",
       });
     },
   });
 
   const handleValueChange = (assetId: string, month: string, value: string) => {
+    const monthNum = parseInt(month);
+    if (monthLockedStatus[monthNum]) return;
+
     setMonthUpdates((prev) => {
       const newUpdates = {
         ...prev,
@@ -174,7 +197,6 @@ export default function UpdateInvestmentsPage() {
           [assetId]: value,
         },
       };
-      setHasPendingChanges(true);
       return newUpdates;
     });
 
@@ -205,57 +227,44 @@ export default function UpdateInvestmentsPage() {
     }, 500);
   };
 
-  const handleSaveAll = async () => {
-    setIsSavingAll(true);
+  const handleSaveMonth = async (month: number) => {
+    setSavingMonths((prev) => new Set(prev).add(month));
+
     try {
+      const monthData = monthUpdates[month];
       const updates: SnapshotUpdate[] = [];
 
-      for (const month of Object.keys(monthUpdates)) {
-        const monthData = monthUpdates[month];
-        for (const assetId of Object.keys(monthData)) {
-          const value = parseCurrencyValue(monthData[assetId]);
-          if (value > 0 && monthDates[month]) {
-            updates.push({
-              assetId,
-              value,
-              date: monthDates[month],
-            });
-          }
+      for (const assetId of Object.keys(monthData)) {
+        const value = parseCurrencyValue(monthData[assetId]);
+        if (value > 0 && monthDates[month]) {
+          updates.push({
+            assetId,
+            value,
+            date: monthDates[month],
+          });
         }
       }
 
-      if (updates.length === 0) {
-        toast({
-          title: "Nenhuma alteração",
-          description: "Nenhum valor para salvar",
-        });
-        setIsSavingAll(false);
-        return;
+      if (updates.length > 0) {
+        for (const update of updates) {
+          await apiRequest("POST", "/api/snapshots", update);
+        }
       }
 
-      for (const update of updates) {
-        await apiRequest("POST", "/api/snapshots", update);
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
-
-      toast({
-        title: "Sucesso",
-        description: `${updates.length} valores foram salvos com sucesso`,
-      });
-
-      setHasPendingChanges(false);
-      originalDataRef.current = JSON.parse(JSON.stringify(monthUpdates));
+      const year = parseInt(selectedYear);
+      lockMonthMutation.mutate({ year, month, locked: true });
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Falha ao salvar alterações",
+        description: "Falha ao salvar mês",
         variant: "destructive",
       });
     } finally {
-      setIsSavingAll(false);
+      setSavingMonths((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(month);
+        return newSet;
+      });
     }
   };
 
@@ -271,7 +280,7 @@ export default function UpdateInvestmentsPage() {
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold">Atualizar Investimentos</h1>
-        <p className="text-secondary mt-2">Atualize valores por mês e acompanhe a evolução do seu portfólio</p>
+        <p className="text-secondary mt-2">Atualize valores por mês. Clique em "Salvar" para bloquear o mês no gráfico</p>
       </div>
 
       <Card>
@@ -281,31 +290,18 @@ export default function UpdateInvestmentsPage() {
               <Calendar className="w-4 h-4" />
               Investimentos - {selectedYear}
             </CardTitle>
-            <div className="flex items-center gap-2">
-              {hasPendingChanges && (
-                <Button 
-                  onClick={handleSaveAll}
-                  disabled={isSavingAll}
-                  className="gap-2"
-                  data-testid="button-save-all"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSavingAll ? "Salvando..." : "Salvar Alterações"}
-                </Button>
-              )}
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-40" data-testid="select-year">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="w-40" data-testid="select-year">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent>
@@ -328,9 +324,11 @@ export default function UpdateInvestmentsPage() {
                       Investimento
                     </th>
                     {monthSequence.map((actualMonth, displayIdx) => (
-                      <th key={displayIdx} className="border-r px-2 py-2 text-center font-semibold min-w-28">
+                      <th key={displayIdx} className="border-r px-2 py-2 text-center font-semibold min-w-32">
                         <div className="text-xs font-medium">{monthShortNames[actualMonth]}</div>
-                        <div className="text-xs text-muted-foreground font-normal">Data da Amortização</div>
+                        <div className="text-xs text-muted-foreground font-normal">
+                          {monthLockedStatus[actualMonth] ? "Bloqueado" : "Data"}
+                        </div>
                       </th>
                     ))}
                   </tr>
@@ -338,21 +336,28 @@ export default function UpdateInvestmentsPage() {
                 <tbody>
                   {/* Date input row */}
                   <tr className="border-b bg-muted/20">
-                    <td className="sticky left-0 z-10 bg-muted/20 border-r px-4 py-2"></td>
+                    <td className="sticky left-0 z-10 bg-muted/20 border-r px-4 py-2 text-xs font-medium">Data</td>
                     {monthSequence.map((actualMonth, displayIdx) => (
                       <td key={displayIdx} className="border-r px-2 py-2">
-                        <input
-                          type="date"
-                          value={monthDates[actualMonth] || ""}
-                          onChange={(e) => {
-                            setMonthDates((prev) => ({
-                              ...prev,
-                              [actualMonth]: e.target.value,
-                            }));
-                          }}
-                          className="w-full px-2 py-1 text-xs border rounded bg-background"
-                          data-testid={`input-month-date-${actualMonth}`}
-                        />
+                        {monthLockedStatus[actualMonth] ? (
+                          <div className="flex items-center justify-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+                            <Lock className="w-3 h-3" />
+                            <span>Bloqueado</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="date"
+                            value={monthDates[actualMonth] || ""}
+                            onChange={(e) => {
+                              setMonthDates((prev) => ({
+                                ...prev,
+                                [actualMonth]: e.target.value,
+                              }));
+                            }}
+                            className="w-full px-2 py-1 text-xs border rounded bg-background"
+                            data-testid={`input-month-date-${actualMonth}`}
+                          />
+                        )}
                       </td>
                     ))}
                   </tr>
@@ -367,6 +372,7 @@ export default function UpdateInvestmentsPage() {
                       {monthSequence.map((actualMonth, displayIdx) => {
                         const cellKey = `${asset.id}-${actualMonth}`;
                         const isSaving = savingCells.has(cellKey);
+                        const isMonthLocked = monthLockedStatus[actualMonth];
                         return (
                           <td key={displayIdx} className="border-r px-2 py-2">
                             <div className="relative">
@@ -377,9 +383,10 @@ export default function UpdateInvestmentsPage() {
                                   handleValueChange(asset.id, actualMonth.toString(), e.target.value)
                                 }
                                 placeholder="0,00"
+                                disabled={isMonthLocked}
                                 className={`w-full px-2 py-1 text-xs border rounded text-right bg-background transition-colors ${
                                   isSaving ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300" : ""
-                                }`}
+                                } ${isMonthLocked ? "bg-gray-100 dark:bg-gray-800 opacity-60 cursor-not-allowed" : ""}`}
                                 data-testid={`input-value-${asset.id}-${actualMonth}`}
                               />
                               {isSaving && (
@@ -395,16 +402,17 @@ export default function UpdateInvestmentsPage() {
                   {/* Total row */}
                   <tr className="bg-muted/50 border-t-2 font-semibold">
                     <td className="sticky left-0 z-10 bg-muted/50 border-r px-4 py-3 text-sm">
-                      Soma dos Investimentos
+                      Total do Mês
                     </td>
                     {monthSequence.map((actualMonth, displayIdx) => {
                       const currentTotal = getMonthTotalValue(actualMonth);
                       const previousTotal = displayIdx > 0 ? getMonthTotalValue(monthSequence[displayIdx - 1]) : currentTotal;
                       const evolution = calculateEvolution(currentTotal, previousTotal);
+                      const isMonthLocked = monthLockedStatus[actualMonth];
 
                       return (
                         <td key={displayIdx} className="border-r px-2 py-2">
-                          <div className="space-y-1 text-center">
+                          <div className="space-y-2 text-center">
                             <div className="text-sm font-semibold">
                               {formatCurrencyDisplay(currentTotal)}
                             </div>
@@ -434,6 +442,31 @@ export default function UpdateInvestmentsPage() {
                                 </div>
                               </>
                             )}
+                            <Button
+                              onClick={() => handleSaveMonth(actualMonth)}
+                              disabled={isMonthLocked || savingMonths.has(actualMonth)}
+                              size="sm"
+                              variant={isMonthLocked ? "secondary" : "default"}
+                              className="w-full gap-1"
+                              data-testid={`button-save-month-${actualMonth}`}
+                            >
+                              {isMonthLocked ? (
+                                <>
+                                  <Lock className="w-3 h-3" />
+                                  Bloqueado
+                                </>
+                              ) : savingMonths.has(actualMonth) ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Salvando
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-3 h-3" />
+                                  Salvar
+                                </>
+                              )}
+                            </Button>
                           </div>
                         </td>
                       );
@@ -444,7 +477,7 @@ export default function UpdateInvestmentsPage() {
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                💡 Dica: Use as barras de rolagem para ver todos os meses e investimentos
+                💡 Dica: Clique em "Salvar" para bloquear um mês. Valores bloqueados não podem ser alterados e aparecem no gráfico
               </div>
             </div>
           )}

@@ -24,6 +24,7 @@ export interface IStorage {
   getSnapshotsByDateRange(startDate: string, endDate: string): Promise<Snapshot[]>;
   getLatestSnapshots(): Promise<Snapshot[]>;
   createSnapshot(snapshot: InsertSnapshot): Promise<Snapshot>;
+  updateSnapshot(id: string, snapshot: Partial<Snapshot>): Promise<Snapshot | undefined>;
   deleteSnapshot(id: string): Promise<boolean>;
   
   getMonthlyStatements(year?: number): Promise<MonthlyStatement[]>;
@@ -37,7 +38,7 @@ export interface IStorage {
   getPortfolioHistory(userId?: string): Promise<PortfolioHistory[]>;
   createPortfolioHistory(history: InsertPortfolioHistory): Promise<PortfolioHistory>;
   getPortfolioHistoryBySnapshots(userId?: string): Promise<Array<{date: string; totalValue: number; month: number; year: number}>>;
-  getPortfolioHistoryByMonth(userId?: string): Promise<Array<{month: number; year: number; value: number}>>;
+  getPortfolioHistoryByMonth(userId?: string): Promise<Array<{month: number; year: number; value: number; isLocked: number}>>;
 
   getActivities(userId?: string): Promise<ActivityLog[]>;
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
@@ -155,6 +156,18 @@ export class DatabaseStorage implements IStorage {
       return newSnapshot;
     } catch (error) {
       console.error(`[SQLite] ✗ Error creating snapshot:`, error);
+      throw error;
+    }
+  }
+
+  async updateSnapshot(id: string, snapshot: Partial<Snapshot>): Promise<Snapshot | undefined> {
+    try {
+      const [updated] = await db.update(snapshots).set(snapshot).where(eq(snapshots.id, id)).returning();
+      console.log(`[SQLite] ✓ Snapshot updated: ${id}`);
+      await autoCommit(`feat: Update snapshot`);
+      return updated;
+    } catch (error) {
+      console.error(`[SQLite] ✗ Error updating snapshot:`, error);
       throw error;
     }
   }
@@ -377,7 +390,7 @@ export class DatabaseStorage implements IStorage {
     return portfolioHistory;
   }
 
-  async getPortfolioHistoryByMonth(userId?: string): Promise<Array<{month: number; year: number; value: number}>> {
+  async getPortfolioHistoryByMonth(userId?: string): Promise<Array<{month: number; year: number; value: number; isLocked: number}>> {
     // Get user's assets first
     const userAssets = await this.getAssets(userId);
     const assetIds = new Set(userAssets.map(a => a.id));
@@ -409,13 +422,14 @@ export class DatabaseStorage implements IStorage {
     });
     
     // For each month, sum the latest snapshot value of each asset
-    const byMonth: Record<string, {month: number; year: number; value: number}> = {};
+    const byMonth: Record<string, {month: number; year: number; value: number; isLocked: number}> = {};
     
     monthsSet.forEach(monthKey => {
       const [year, month] = monthKey.split('-').map(Number);
       const endOfMonth = new Date(year, month, 0); // Last day of month
       
       let totalValue = 0;
+      let isLocked = 0;
       
       // For each asset, find the latest snapshot up to end of this month
       Object.keys(snapshotsByAsset).forEach(assetId => {
@@ -424,12 +438,16 @@ export class DatabaseStorage implements IStorage {
         for (let i = assetSnapshots.length - 1; i >= 0; i--) {
           if (new Date(assetSnapshots[i].date) <= endOfMonth) {
             totalValue += assetSnapshots[i].value;
+            // Check if ANY snapshot in this month is locked
+            if (assetSnapshots[i].isLocked) {
+              isLocked = 1;
+            }
             break;
           }
         }
       });
       
-      byMonth[monthKey] = { month, year, value: totalValue };
+      byMonth[monthKey] = { month, year, value: totalValue, isLocked };
     });
     
     return Object.values(byMonth).sort((a, b) => {
