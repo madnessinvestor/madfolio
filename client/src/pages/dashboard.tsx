@@ -12,7 +12,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDisplayCurrency } from "@/hooks/use-currency";
 import { useCurrencyConverter } from "@/components/CurrencySwitcher";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 
 interface PortfolioSummary {
   totalValue: number;
@@ -49,7 +49,6 @@ export default function Dashboard() {
   const { displayCurrency, isBalanceHidden } = useDisplayCurrency();
   const { formatCurrency } = useCurrencyConverter();
   const [bulkUpdateOpen, setBulkUpdateOpen] = useState(false);
-  const historyGeneratedRef = useRef(false);
 
   const { data: summary, isLoading: summaryLoading } = useQuery<PortfolioSummary>({
     queryKey: ["/api/portfolio/summary"],
@@ -58,14 +57,6 @@ export default function Dashboard() {
   const { data: history = [], isLoading: historyLoading } = useQuery<any[]>({
     queryKey: ["/api/portfolio/history"],
   });
-
-  useEffect(() => {
-    if (history.length === 0 && summary && summary.holdings && summary.holdings.length > 0 && !historyLoading && !historyGeneratedRef.current) {
-      historyGeneratedRef.current = true;
-      fetch("/api/portfolio/history/generate", { method: "POST" })
-        .catch(console.error);
-    }
-  }, [summary?.holdings.length, historyLoading]);
 
   // Calculate variations for history - show all available data from 2025 onwards (no isLocked filter)
   const historyWithVariations: HistoryPoint[] = [...history]
