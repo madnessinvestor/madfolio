@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -17,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { History, Search, Filter, Calendar } from "lucide-react";
+import { History, Search, Filter, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,9 +41,12 @@ interface HistoryPoint {
   variation: number;
 }
 
+const ITEMS_PER_PAGE = 50;
+
 export default function HistoryPage() {
   const [filter, setFilter] = useState<"all" | "crypto" | "traditional">("all");
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: snapshots = [], isLoading: snapshotsLoading } = useQuery<Snapshot[]>({
     queryKey: ["/api/snapshots"],
@@ -75,6 +79,11 @@ export default function HistoryPage() {
     return matchesFilter && matchesSearch;
   });
 
+  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedHistory = filteredHistory.slice(startIndex, endIndex);
+
   const formatCurrency = (value: number) =>
     `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -84,6 +93,26 @@ export default function HistoryPage() {
   }));
 
   const isLoading = snapshotsLoading || assetsLoading || historyLoading;
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+    if (endPage - startPage < maxPagesToShow - 1) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -105,23 +134,40 @@ export default function HistoryPage() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Lançamentos
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <CardHeader className="flex flex-col gap-4 pb-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Lançamentos
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">
+              {filteredHistory.length > 0 ? (
+                <>
+                  Mostrando {startIndex + 1} a {Math.min(endIndex, filteredHistory.length)} de {filteredHistory.length} registros
+                </>
+              ) : (
+                "Nenhum registro encontrado"
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 w-full">
             <div className="relative flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar ativo..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="pl-9 w-full sm:w-48"
                 data-testid="input-search-history"
               />
             </div>
-            <Select value={filter} onValueChange={(v: "all" | "crypto" | "traditional") => setFilter(v)}>
+            <Select value={filter} onValueChange={(v: "all" | "crypto" | "traditional") => {
+              setFilter(v);
+              setCurrentPage(1);
+            }}>
               <SelectTrigger className="w-full sm:w-40" data-testid="select-filter-market">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filtrar" />
@@ -152,7 +198,7 @@ export default function HistoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredHistory.map((entry) => (
+                  {paginatedHistory.map((entry) => (
                     <TableRow key={entry.id} data-testid={`row-history-${entry.id}`}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -187,6 +233,77 @@ export default function HistoryPage() {
           ) : (
             <div className="p-12 text-center text-muted-foreground">
               Nenhum lançamento encontrado. Adicione ativos e registre valores para ver o histórico.
+            </div>
+          )}
+          {filteredHistory.length > ITEMS_PER_PAGE && (
+            <div className="border-t p-4 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1">
+                <Button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-prev-page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-1 flex-wrap justify-center">
+                {currentPage > 3 && (
+                  <>
+                    <Button
+                      onClick={() => handlePageChange(1)}
+                      variant="outline"
+                      size="sm"
+                      data-testid="button-page-1"
+                    >
+                      1
+                    </Button>
+                    {currentPage > 4 && <span className="text-muted-foreground">...</span>}
+                  </>
+                )}
+
+                {getPageNumbers().map((page) => (
+                  <Button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="sm"
+                    data-testid={`button-page-${page}`}
+                  >
+                    {page}
+                  </Button>
+                ))}
+
+                {currentPage < totalPages - 2 && (
+                  <>
+                    {currentPage < totalPages - 3 && <span className="text-muted-foreground">...</span>}
+                    <Button
+                      onClick={() => handlePageChange(totalPages)}
+                      variant="outline"
+                      size="sm"
+                      data-testid={`button-page-${totalPages}`}
+                    >
+                      {totalPages}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-next-page"
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
