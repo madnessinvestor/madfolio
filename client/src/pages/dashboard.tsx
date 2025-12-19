@@ -91,8 +91,12 @@ export default function Dashboard() {
       };
     });
 
-  // Show all available history from backend (2025 onwards) - format as "Jan/25", "Fev/25", etc.
+  // Show only locked/saved months from backend - format as "Jan/25", "Fev/25", etc.
   const performanceData = historyWithVariations
+    .filter((h) => {
+      const monthIndex = parseInt(h.month) - 1;
+      return monthStatus[monthIndex] === true; // Only include locked months
+    })
     .map((h) => {
       const monthIndex = parseInt(h.month) - 1;
       const monthName = monthIndex >= 0 && monthIndex < 12 ? monthNames[monthIndex] : h.month;
