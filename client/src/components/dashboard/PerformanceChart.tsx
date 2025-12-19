@@ -42,13 +42,16 @@ export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: 
             <TabsTrigger value="bar" data-testid="tab-bar-chart">Barras</TabsTrigger>
           </TabsList>
           <TabsContent value="line">
-            <div className="h-72">
+            <div className="h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 11 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
                     className="text-muted-foreground"
                   />
                   <YAxis
@@ -79,13 +82,16 @@ export function PerformanceChart({ data, title = "Evolução do Patrimônio" }: 
             </div>
           </TabsContent>
           <TabsContent value="bar">
-            <div className="h-72">
+            <div className="h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 11 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
                     className="text-muted-foreground"
                   />
                   <YAxis

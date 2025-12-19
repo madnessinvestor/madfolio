@@ -1,6 +1,5 @@
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
-import { CategoryChart } from "@/components/dashboard/CategoryChart";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
 import { PortfolioHoldings } from "@/components/dashboard/PortfolioHoldings";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
@@ -217,32 +216,26 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          {historyLoading ? (
-            <Skeleton className="h-80 rounded-lg" />
-          ) : performanceData.length > 0 ? (
-            <PerformanceChart data={performanceData} />
-          ) : (
-            <div className="h-80 rounded-lg border flex items-center justify-center text-muted-foreground">
-              Adicione lançamentos para ver o gráfico de evolução
-            </div>
-          )}
-        </div>
-        <ExposureCard 
-          cryptoValue={cryptoValue} 
-          fixedIncomeValue={fixedIncomeValue}
-          variableIncomeValue={variableIncomeValue}
-          realEstateValue={realEstateValue}
-          formatCurrency={format}
-        />
+      <div>
+        {historyLoading ? (
+          <Skeleton className="h-96 rounded-lg" />
+        ) : performanceData.length > 0 ? (
+          <PerformanceChart data={performanceData} />
+        ) : (
+          <div className="h-96 rounded-lg border flex items-center justify-center text-muted-foreground">
+            Adicione lançamentos para ver o gráfico de evolução
+          </div>
+        )}
       </div>
 
-      {categoryData.length > 0 && (
-        <div>
-          <CategoryChart title="Distribuição por Categoria" data={categoryData} />
-        </div>
-      )}
+      <ExposureCard 
+        cryptoValue={cryptoValue} 
+        fixedIncomeValue={fixedIncomeValue}
+        variableIncomeValue={variableIncomeValue}
+        realEstateValue={realEstateValue}
+        formatCurrency={format}
+        categoryData={categoryData}
+      />
 
       <PortfolioHoldings
         holdings={summary?.holdings || []}
