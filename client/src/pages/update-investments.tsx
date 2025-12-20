@@ -106,8 +106,8 @@ export default function UpdateInvestmentsPage() {
 
       for (let month = 0; month < 12; month++) {
         const monthKey = month.toString();
-        const lastDayOfMonth = new Date(year, month + 1, 0);
-        newMonthDates[monthKey] = lastDayOfMonth.toISOString().split("T")[0];
+        const firstDayOfMonth = new Date(year, month, 1);
+        newMonthDates[monthKey] = firstDayOfMonth.toISOString().split("T")[0];
 
         newMonthUpdates[monthKey] = {};
         assets.forEach((asset) => {
