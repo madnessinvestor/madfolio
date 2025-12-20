@@ -94,7 +94,7 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
           {/* Pie Chart - Left Side */}
           {pieData.length > 0 && (
             <div className="flex flex-col items-center pt-8">
-              <div className="h-[550px] w-full">
+              <div className="h-[688px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 20, right: 60, left: 60, bottom: 100 }}>
                     <Pie
@@ -103,8 +103,8 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
                       cy="45%"
                       labelLine={false}
                       label={renderCustomLabel}
-                      innerRadius={55}
-                      outerRadius={110}
+                      innerRadius={69}
+                      outerRadius={138}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -126,13 +126,13 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
           )}
 
           {/* Details - Right Side */}
-          <div className="space-y-4">
+          <div className="space-y-8">
             {assets.map((asset, index) => {
               const Icon = asset.icon;
               const percentFormatted = asset.percent.toFixed(1).replace('.', ',');
               return (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between gap-4">
+                <div key={index} className="space-y-3">
+                  <div className="flex items-center justify-between gap-6">
                     <div className="flex items-center gap-3 flex-1">
                       <div 
                         className="p-2 rounded-lg flex-shrink-0"
