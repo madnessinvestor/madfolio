@@ -345,10 +345,6 @@ export default function MonthlySnapshotsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Evolução do Patrimônio - {selectedYear}
-          </CardTitle>
         </CardHeader>
         <CardContent>
           {assetsLoading ? (
