@@ -184,6 +184,8 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
     const parsedQuantity = parseFloat(quantity.replace(",", ".")) || 1;
     const parsedAcquisitionPrice = parseCurrencyValue(acquisitionPrice);
     const parsedCurrentValue = parseCurrencyValue(currentValue);
+    const totalValue = parsedQuantity * parsedCurrentValue;
+    const today = new Date().toISOString().split("T")[0];
 
     await apiRequest("POST", "/api/activities", {
       type: "update",
@@ -201,6 +203,22 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
       acquisitionPrice: parsedAcquisitionPrice,
       acquisitionDate,
       currentPrice: parsedCurrentValue,
+    }, {
+      onSuccess: async () => {
+        // Create a snapshot of the edited values
+        try {
+          await createSnapshotMutation.mutateAsync({
+            assetId,
+            date: today,
+            value: totalValue,
+            amount: parsedQuantity,
+            unitPrice: parsedCurrentValue,
+            notes: "Edição de investimento",
+          });
+        } catch (error) {
+          console.error("Failed to create snapshot:", error);
+        }
+      },
     });
   };
 
