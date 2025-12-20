@@ -130,9 +130,14 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
     mutationFn: async (snapshot: any) => {
       return apiRequest("POST", "/api/snapshots", snapshot);
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Extract year from the snapshot date to invalidate the correct year-based query
+      const snapshotYear = new Date(variables.date).getFullYear();
+      
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots", assetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year", snapshotYear.toString()] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status", snapshotYear.toString()] });
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assets", assetId] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
