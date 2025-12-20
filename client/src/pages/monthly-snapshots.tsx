@@ -356,7 +356,7 @@ export default function MonthlySnapshotsPage() {
               Registre meses na tabela abaixo para visualizar o gráfico
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={700}>
               <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
