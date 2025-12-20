@@ -89,43 +89,43 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold">Distribuição de Ativos</CardTitle>
       </CardHeader>
-      <CardContent className="pt-6">
-        {/* Pie Chart */}
-        {pieData.length > 0 && (
-          <div className="flex flex-col items-center">
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 60 }}>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="40%"
-                    labelLine={false}
-                    label={renderCustomLabel}
-                    innerRadius={69}
-                    outerRadius={138}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={40}
-                    wrapperStyle={{ paddingTop: "20px", paddingBottom: "10px" }}
-                    formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Pie Chart - Left Side */}
+          {pieData.length > 0 && (
+            <div className="flex flex-col items-center">
+              <div className="h-[380px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart margin={{ top: 0, right: 20, left: 20, bottom: 40 }}>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomLabel}
+                      innerRadius={69}
+                      outerRadius={138}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={40}
+                      wrapperStyle={{ paddingTop: "20px", paddingBottom: "10px" }}
+                      formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="mt-8">
-          {/* Details - Bottom */}
+          {/* Details - Right Side */}
           <div className="space-y-6">
             {assets.map((asset, index) => {
               const Icon = asset.icon;
