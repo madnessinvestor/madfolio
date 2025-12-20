@@ -89,51 +89,40 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold">Distribuição de Ativos</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-8 items-start">
-          {/* Legend - Left Side */}
-          {pieData.length > 0 && (
-            <div className="flex flex-col justify-center space-y-3">
-              {assets.map((asset, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-sm flex-shrink-0" 
-                    style={{ backgroundColor: asset.color }}
+      <CardContent className="pt-6">
+        {/* Pie Chart */}
+        {pieData.length > 0 && (
+          <div className="flex flex-col items-center">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 60 }}>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="40%"
+                    labelLine={false}
+                    label={renderCustomLabel}
+                    innerRadius={69}
+                    outerRadius={138}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend 
+                    verticalAlign="bottom" 
+                    height={40}
+                    wrapperStyle={{ paddingTop: "20px", paddingBottom: "10px" }}
+                    formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
                   />
-                  <span className="text-xs text-foreground">{asset.name}</span>
-                </div>
-              ))}
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          )}
-
-          {/* Pie Chart - Center */}
-          {pieData.length > 0 && (
-            <div className="flex flex-col items-center">
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={renderCustomLabel}
-                      innerRadius={69}
-                      outerRadius={138}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="mt-8">
           {/* Details - Bottom */}
