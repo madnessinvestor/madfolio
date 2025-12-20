@@ -2,7 +2,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
 import { PortfolioHoldings } from "@/components/dashboard/PortfolioHoldings";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
-import { Wallet, TrendingUp, Landmark, BarChart3, Building2, Calendar, Loader2, Save, Lock } from "lucide-react";
+import { Wallet, TrendingUp, Landmark, BarChart3, Building2, Calendar, Loader2, Save, Lock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -523,6 +523,34 @@ export default function Dashboard() {
 
       <Card>
         <CardHeader>
+          <div className="flex flex-row items-center justify-between gap-4 flex-wrap">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Evolução do Portfólio
+            </CardTitle>
+            <div className="flex flex-row items-center gap-3 flex-wrap">
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-32" data-testid="select-year-dashboard">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2023">2023</SelectItem>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => navigate("/evolucao-do-portfolio")}
+                className="flex items-center gap-2"
+                data-testid="button-view-details"
+              >
+                Ver Detalhes
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {assetsLoading ? (
