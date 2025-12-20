@@ -42,6 +42,14 @@ interface Snapshot {
   createdAt?: string;
 }
 
+interface ActivityLog {
+  id: string;
+  type: string;
+  action: string;
+  details: string;
+  createdAt?: string;
+}
+
 interface EditInvestmentDialogProps {
   assetId: string;
   open: boolean;
@@ -70,6 +78,11 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
 
   const { data: snapshots = [], isLoading: snapshotsLoading } = useQuery<Snapshot[]>({
     queryKey: ["/api/snapshots", assetId],
+    enabled: open && !!assetId,
+  });
+
+  const { data: activities = [], isLoading: activitiesLoading } = useQuery<ActivityLog[]>({
+    queryKey: ["/api/activities"],
     enabled: open && !!assetId,
   });
 
@@ -200,14 +213,29 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
       details: `Quantidade: ${parsedQuantity}, Valor Total: R$ ${totalValue.toFixed(2)}`,
     }).catch(() => {});
 
-    createSnapshotMutation.mutate({
-      assetId,
-      date: updateDate,
-      value: totalValue,
-      amount: parsedQuantity,
-      unitPrice: parsedPrice,
-      notes: updateNotes || "Atualização manual",
-    });
+    createSnapshotMutation.mutate(
+      {
+        assetId,
+        date: updateDate,
+        value: totalValue,
+        amount: parsedQuantity,
+        unitPrice: parsedPrice,
+        notes: updateNotes || "Atualização manual",
+      },
+      {
+        onSuccess: async () => {
+          // Update the asset's currentPrice with the new unit price
+          try {
+            await apiRequest("PATCH", `/api/assets/${assetId}`, {
+              currentPrice: parsedPrice,
+              quantity: parsedQuantity,
+            });
+          } catch (error) {
+            console.error("Failed to update asset price:", error);
+          }
+        },
+      }
+    );
   };
 
   const isSimplified = asset?.quantity === 1;
@@ -429,25 +457,27 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
 
           {/* Aba de Histórico */}
           <TabsContent value="history" className="space-y-4">
-            {snapshotsLoading ? (
+            {snapshotsLoading || activitiesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
-            ) : snapshots.length === 0 ? (
+            ) : snapshots.length === 0 && activities.filter(a => a.action?.includes(asset?.symbol || '')).length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-secondary-foreground">Nenhum histórico disponível</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
+                {/* Snapshots */}
                 {snapshots.map((snapshot) => (
                   <div
                     key={snapshot.id}
-                    className="p-3 border rounded-md space-y-2"
+                    className="p-3 border rounded-md space-y-2 bg-accent/5"
                     data-testid={`snapshot-history-${snapshot.id}`}
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-semibold text-sm">
+                        <p className="font-semibold text-sm flex items-center gap-2">
+                          <span className="text-xs bg-accent px-2 py-0.5 rounded">Snapshot</span>
                           {format(parseISO(snapshot.date), "dd/MM/yyyy", { locale: ptBR })}
                         </p>
                         {snapshot.notes && <p className="text-xs text-secondary-foreground">{snapshot.notes}</p>}
@@ -466,6 +496,37 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
                     )}
                   </div>
                 ))}
+                
+                {/* Activity Logs */}
+                {activities
+                  .filter(a => a.action?.includes(asset?.symbol || '') || a.action?.includes(asset?.name || ''))
+                  .sort((a, b) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                  })
+                  .map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="p-3 border rounded-md space-y-1 bg-secondary/5"
+                      data-testid={`activity-history-${activity.id}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <p className="font-semibold text-sm flex items-center gap-2">
+                          <span className="text-xs bg-secondary px-2 py-0.5 rounded">{activity.type}</span>
+                          {activity.action}
+                        </p>
+                      </div>
+                      {activity.details && (
+                        <p className="text-xs text-secondary-foreground">{activity.details}</p>
+                      )}
+                      {activity.createdAt && (
+                        <p className="text-xs text-tertiary-foreground">
+                          {format(parseISO(activity.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                        </p>
+                      )}
+                    </div>
+                  ))}
               </div>
             )}
           </TabsContent>
