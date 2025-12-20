@@ -90,13 +90,28 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
         <CardTitle className="text-lg font-semibold">Distribuição de Ativos</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pie Chart - Left Side */}
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-8 items-start">
+          {/* Legend - Left Side */}
+          {pieData.length > 0 && (
+            <div className="flex flex-col justify-center space-y-3">
+              {assets.map((asset, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-sm flex-shrink-0" 
+                    style={{ backgroundColor: asset.color }}
+                  />
+                  <span className="text-xs text-foreground">{asset.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pie Chart - Center */}
           {pieData.length > 0 && (
             <div className="flex flex-col items-center">
-              <div className="h-[380px] w-full">
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart margin={{ top: 0, right: 20, left: 20, bottom: 40 }}>
+                  <PieChart margin={{ top: 20, right: 20, left: 20, bottom: 20 }}>
                     <Pie
                       data={pieData}
                       cx="50%"
@@ -113,19 +128,15 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
                       ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      height={40}
-                      wrapperStyle={{ paddingTop: "20px", paddingBottom: "10px" }}
-                      formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Details - Right Side */}
+        <div className="mt-8">
+          {/* Details - Bottom */}
           <div className="space-y-6">
             {assets.map((asset, index) => {
               const Icon = asset.icon;
