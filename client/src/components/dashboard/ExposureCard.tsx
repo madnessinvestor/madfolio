@@ -126,22 +126,17 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
           )}
 
           {/* Details - Right Side */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             {assets.map((asset, index) => {
               const Icon = asset.icon;
               const percentFormatted = asset.percent.toFixed(1).replace('.', ',');
               return (
-                <div key={index} className="space-y-3">
-                  <div className="flex items-center justify-between gap-6">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div 
-                        className="p-2 rounded-lg flex-shrink-0"
-                        style={{ backgroundColor: `${asset.color}20` }}
-                      >
-                        <Icon className="h-4 w-4" style={{ color: asset.color }} />
-                      </div>
+                <div key={index} className="space-y-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2 flex-1">
+                      <Icon className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: asset.color }} />
                       <div className="min-w-0">
-                        <p className="font-medium text-sm">{asset.name}</p>
+                        <p className="font-medium text-sm text-foreground">{asset.name}</p>
                         <p className="text-xs text-muted-foreground tabular-nums">
                           {format(asset.value)}
                         </p>
@@ -149,17 +144,14 @@ export function ExposureCard({ cryptoValue, fixedIncomeValue, variableIncomeValu
                     </div>
                     <div className="flex flex-col items-end flex-shrink-0">
                       <span 
-                        className="text-sm font-bold tabular-nums whitespace-nowrap rounded px-2 py-1"
-                        style={{ 
-                          backgroundColor: `${asset.color}20`,
-                          color: asset.color
-                        }}
+                        className="text-sm font-bold tabular-nums whitespace-nowrap"
+                        style={{ color: asset.color }}
                       >
                         {percentFormatted}%
                       </span>
                     </div>
                   </div>
-                  <Progress value={asset.percent} className="h-2" style={{ accentColor: asset.color }} />
+                  <Progress value={asset.percent} className="h-2.5" style={{ accentColor: asset.color }} />
                 </div>
               );
             })}
