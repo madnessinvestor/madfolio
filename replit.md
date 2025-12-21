@@ -41,6 +41,12 @@
   - Uses CoinGecko API for real-time price data (BTC, ETH, SOL, ERGO, etc.)
   - Locked monthly snapshots prevent auto-updates for that month
   - Price updates do not affect manually edited values in unlocked months
+- Added auto-price-lookup when editing crypto assets (Holdings Cripto only)
+  - Type symbol (e.g., BTC) → automatically fetches current price
+  - 500ms debounce prevents excessive API calls
+  - Visual feedback: loading spinner, price success indicator, error messages
+  - Displays "(Obtido automaticamente)" when price is auto-fetched
+  - Works identically to "Adicionar Investimento" feature
 
 ### Dec 19, 2025
 - Migrated project to Replit environment
@@ -158,9 +164,10 @@ npm run db:push
 - Always use `npm run db:push` for database schema changes
 - Use `.env.local` for local development settings (not committed)
 
-## Crypto Holdings Auto-Update Feature
+## Crypto Holdings Auto-Update & Price Lookup Features
 
-The application now automatically updates all cryptocurrency holdings in the "Holdings Cripto" section:
+### Auto-Update (Holdings Cripto Section)
+The application automatically updates all cryptocurrency holdings in the "Holdings Cripto" section:
 
 **How it works:**
 - Backend: `startPriceUpdater()` runs every 5 minutes and fetches live prices from CoinGecko
@@ -170,14 +177,28 @@ The application now automatically updates all cryptocurrency holdings in the "Ho
   - Window regains focus (after switching tabs/windows)
   - User manually triggers a page refresh
 
-**Supported cryptocurrencies:**
-- Direct mapping: BTC, ETH, SOL, ADA, DOT, AVAX, MATIC, LINK, ATOM, XRP, DOGE, SHIB, LTC, BCH, XLM, ALGO, VET, FIL, THETA, TRX, EOS, XTZ, AAVE, MKR, COMP, SNX, YFI, SUSHI, CRV, ERGO, and others
-- Dynamic search: Any cryptocurrency supported by CoinGecko
-
 **Price locking:**
 - When a user creates a "snapshot" (monthly lock), that value is frozen and won't be auto-updated
 - The `isLocked` flag in the snapshots table prevents auto-updates for that month
 - Unlocked months continue to auto-update
+
+### Auto-Price-Lookup When Editing (Holdings Cripto Only)
+When editing a crypto asset in Holdings Cripto, typing the symbol automatically fetches the current price:
+
+**Features:**
+- Type symbol (e.g., BTC, ETH, SOL) → automatic price fetch after 500ms
+- Visual feedback shows:
+  - Loading spinner while fetching
+  - ✓ Green checkmark when price is found
+  - ⚠ Error message if price is not found
+  - "(Obtido automaticamente)" label on the price field
+- User can still manually override the price
+- Only works for market === "crypto" (Holdings Cripto)
+- Does not affect other market types
+
+**Supported cryptocurrencies:**
+- Direct mapping: BTC, ETH, SOL, ADA, DOT, AVAX, MATIC, LINK, ATOM, XRP, DOGE, SHIB, LTC, BCH, XLM, ALGO, VET, FIL, THETA, TRX, EOS, XTZ, AAVE, MKR, COMP, SNX, YFI, SUSHI, CRV, ERGO, and others
+- Dynamic search: Any cryptocurrency supported by CoinGecko
 
 ## Future Enhancements
 

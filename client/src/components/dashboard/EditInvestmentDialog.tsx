@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Save, Calendar, History, TrendingUp } from "lucide-react";
+import { Loader2, Save, Calendar, History, TrendingUp, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +65,11 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
   const [acquisitionDate, setAcquisitionDate] = useState("");
   const [currentValue, setCurrentValue] = useState("");
 
+  // Price lookup states for crypto assets
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState(false);
+  const [autoFetchedPrice, setAutoFetchedPrice] = useState<number | null>(null);
+
   // Update snapshot states
   const [updateDate, setUpdateDate] = useState(new Date().toISOString().split("T")[0]);
   const [updateQuantity, setUpdateQuantity] = useState("");
@@ -86,6 +91,44 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
     enabled: open && !!assetId,
   });
 
+  const fetchCurrentPrice = useCallback(async (symbolToFetch: string, market: string) => {
+    if (market !== "crypto") {
+      setAutoFetchedPrice(null);
+      setPriceError(false);
+      return;
+    }
+
+    if (!symbolToFetch || symbolToFetch.length < 2) {
+      setAutoFetchedPrice(null);
+      return;
+    }
+
+    setPriceLoading(true);
+    setPriceError(false);
+
+    try {
+      const response = await fetch(`/api/price-lookup?symbol=${encodeURIComponent(symbolToFetch)}&market=${market}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.price) {
+          setAutoFetchedPrice(data.price);
+          setCurrentValue(formatCurrencyInput(data.price));
+        } else {
+          setAutoFetchedPrice(null);
+          setPriceError(true);
+        }
+      } else {
+        setAutoFetchedPrice(null);
+        setPriceError(true);
+      }
+    } catch (error) {
+      setAutoFetchedPrice(null);
+      setPriceError(true);
+    } finally {
+      setPriceLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (asset) {
       setName(asset.name || "");
@@ -96,8 +139,23 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
       setCurrentValue(formatCurrencyInput(asset.currentPrice || asset.acquisitionPrice || 0));
       setUpdateQuantity(asset.quantity?.toString() || "1");
       setUpdatePrice(formatCurrencyInput(asset.currentPrice || 0));
+      setAutoFetchedPrice(null);
+      setPriceError(false);
     }
   }, [asset]);
+
+  // Auto-fetch price when symbol changes (for crypto assets only)
+  useEffect(() => {
+    if (asset && asset.market === "crypto") {
+      const timeoutId = setTimeout(() => {
+        if (symbol.length >= 2) {
+          fetchCurrentPrice(symbol, asset.market);
+        }
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [symbol, asset, fetchCurrentPrice]);
 
   const updateAssetMutation = useMutation({
     mutationFn: async (data: Partial<Asset>) => {
@@ -303,7 +361,26 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
               {!isSimplified && (
                 <>
                   <div className="grid gap-2">
-                    <Label htmlFor="edit-symbol">Símbolo *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="edit-symbol">Símbolo *</Label>
+                      {asset?.market === "crypto" && priceLoading && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Buscando preço...
+                        </span>
+                      )}
+                      {asset?.market === "crypto" && priceError && !priceLoading && (
+                        <span className="text-xs text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Preço não encontrado
+                        </span>
+                      )}
+                      {asset?.market === "crypto" && autoFetchedPrice && !priceLoading && !priceError && (
+                        <span className="text-xs text-green-600 flex items-center gap-1">
+                          ✓ Preço atualizado
+                        </span>
+                      )}
+                    </div>
                     <Input
                       id="edit-symbol"
                       value={symbol}
@@ -339,6 +416,9 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
                 <div className="grid gap-2">
                   <Label htmlFor="edit-current-value">
                     {isSimplified ? "Valor Atual *" : "Preço Atual *"}
+                    {asset?.market === "crypto" && autoFetchedPrice && !priceLoading && (
+                      <span className="text-xs text-green-600 ml-2">(Obtido automaticamente)</span>
+                    )}
                   </Label>
                   <Input
                     id="edit-current-value"
