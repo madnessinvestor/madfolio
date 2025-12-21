@@ -30,6 +30,7 @@ interface HoldingsTableProps {
   onDelete?: (holding: Holding) => void;
   isHidden?: boolean;
   fixedIncome?: boolean;
+  variableIncome?: boolean;
 }
 
 export function HoldingsTable({
@@ -40,6 +41,7 @@ export function HoldingsTable({
   onDelete,
   isHidden,
   fixedIncome = false,
+  variableIncome = false,
 }: HoldingsTableProps) {
   const formatCurrency = (value: number) =>
     isHidden ? '***' : `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -70,11 +72,11 @@ export function HoldingsTable({
               <TableRow>
                 <TableHead>Ativo</TableHead>
                 <TableHead className="text-right">Quantidade</TableHead>
-                <TableHead className="text-right">{fixedIncome ? "Valor Inicial" : "Preço Médio"}</TableHead>
-                <TableHead className="text-right">{fixedIncome ? "Valor Atual" : "Preço Atual"}</TableHead>
-                {fixedIncome && <TableHead className="text-right">Valorização (R$)</TableHead>}
-                <TableHead className="text-right">{fixedIncome ? "Lucro/Perda Total (%)" : "Lucro/Perda %"}</TableHead>
-                {!fixedIncome && <TableHead className="text-right">24h</TableHead>}
+                <TableHead className="text-right">{fixedIncome || variableIncome ? "Valor Inicial" : "Preço Médio"}</TableHead>
+                <TableHead className="text-right">{fixedIncome || variableIncome ? "Valor Atual" : "Preço Atual"}</TableHead>
+                {(fixedIncome || variableIncome) && <TableHead className="text-right">Valorização (R$)</TableHead>}
+                <TableHead className="text-right">{fixedIncome || variableIncome ? "Lucro/Perda Total (%)" : "Lucro/Perda %"}</TableHead>
+                {!fixedIncome && !variableIncome && <TableHead className="text-right">24h</TableHead>}
                 <TableHead className="text-right sr-only">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -108,7 +110,7 @@ export function HoldingsTable({
                     <TableCell className="text-right tabular-nums">
                       {formatCurrency(holding.currentPrice)}
                     </TableCell>
-                    {fixedIncome && (
+                    {(fixedIncome || variableIncome) && (
                       <TableCell className="text-right tabular-nums">
                         <span className={isProfit ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                           {isProfit ? "+" : ""}{formatCurrency(profitLoss)}
@@ -123,7 +125,7 @@ export function HoldingsTable({
                         </span>
                       </div>
                     </TableCell>
-                    {!fixedIncome && (
+                    {!fixedIncome && !variableIncome && (
                       <TableCell className="text-right">
                         <span className={`tabular-nums text-sm ${holding.change24h >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {holding.change24h >= 0 ? "+" : ""}{holding.change24h.toFixed(2)}%

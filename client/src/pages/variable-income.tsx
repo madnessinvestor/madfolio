@@ -254,6 +254,7 @@ export default function VariableIncomePage() {
               onEdit={handleEdit}
               onDelete={handleDelete}
               isHidden={isBalanceHidden}
+              variableIncome={true}
             />
           ) : (
             <div className="h-64 rounded-lg border flex items-center justify-center text-muted-foreground">
