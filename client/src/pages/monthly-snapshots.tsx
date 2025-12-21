@@ -531,7 +531,25 @@ export default function MonthlySnapshotsPage() {
                     </td>
                     {monthSequence.map((actualMonth, displayIdx) => {
                       const currentTotal = getMonthTotalValue(actualMonth);
-                      const previousTotal = displayIdx > 0 ? getMonthTotalValue(monthSequence[displayIdx - 1]) : currentTotal;
+                      let previousTotal = currentTotal;
+                      let showVariation = false;
+
+                      if (displayIdx > 0) {
+                        previousTotal = getMonthTotalValue(monthSequence[displayIdx - 1]);
+                        showVariation = true;
+                      } else if (actualMonth === 0) {
+                        // January: compare with December of previous year
+                        const decemberValue = Object.values(previousYearSnapshots).reduce((total, assetData) => {
+                          const decemberSnapshot = assetData?.[11]; // December is month 11
+                          return total + (decemberSnapshot?.value || 0);
+                        }, 0);
+                        
+                        if (decemberValue > 0) {
+                          previousTotal = decemberValue;
+                          showVariation = true;
+                        }
+                      }
+
                       const evolution = calculateEvolution(currentTotal, previousTotal);
                       const isMonthLocked = monthLockedStatus[actualMonth];
 
@@ -543,7 +561,7 @@ export default function MonthlySnapshotsPage() {
                             }`}>
                               {formatCurrencyDisplay(currentTotal)}
                             </div>
-                            {displayIdx > 0 && (
+                            {showVariation && (
                               <>
                                 <div
                                   className={`text-xs font-medium transition-colors ${
