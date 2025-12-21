@@ -3,12 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PortfolioHistory } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { TrendingUp, TrendingDown, Minus, Loader2, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { useDisplayCurrency } from "@/hooks/use-currency";
+
+interface PortfolioHistoryItem {
+  id: string;
+  date: string;
+  month: string;
+  year: number;
+  totalValue: number;
+  value: number;
+  isLocked: number;
+  variation: number;
+  variationPercent: number;
+}
 
 const monthNames = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -17,10 +28,9 @@ const monthNames = [
 
 export default function HistoryPage() {
   const { displayCurrency } = useDisplayCurrency();
-  const currentYear = new Date().getFullYear();
-  const [yearFilter, setYearFilter] = useState(currentYear.toString());
+  const [yearFilter, setYearFilter] = useState("2025");
   
-  const { data: history, isLoading } = useQuery<PortfolioHistory[]>({
+  const { data: history, isLoading } = useQuery<PortfolioHistoryItem[]>({
     queryKey: ["/api/portfolio/history"],
   });
 
@@ -35,11 +45,8 @@ export default function HistoryPage() {
     );
   }
 
-  // Filter by selected year
-  const yearData = (history || []).filter(item => {
-    const itemYear = new Date(item.date).getFullYear();
-    return itemYear === parseInt(yearFilter);
-  });
+  // Filter by selected year - use the year field directly
+  const yearData = (history || []).filter(item => item.year === parseInt(yearFilter));
 
   // Sort by date ascending for calculation purposes
   const sortedAscending = [...yearData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -74,7 +81,7 @@ export default function HistoryPage() {
     if (!nextItem) return { ...item, diff: 0, diffPercent: 0 };
 
     const diff = item.totalValue - nextItem.totalValue;
-    const diffPercent = (diff / nextItem.totalValue) * 100;
+    const diffPercent = nextItem.totalValue !== 0 ? (diff / nextItem.totalValue) * 100 : 0;
 
     return { ...item, diff, diffPercent };
   });
