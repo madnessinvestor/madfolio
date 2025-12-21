@@ -110,6 +110,8 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots", assetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       toast({
         title: "Investimento atualizado",
@@ -228,6 +230,8 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
       // Manually invalidate all related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
       queryClient.invalidateQueries({ queryKey: ["/api/snapshots", assetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/assets", assetId] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
