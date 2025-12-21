@@ -1,8 +1,8 @@
-# Replit Project Documentation - Portfolio Tracker
+# Replit Project Documentation - MadFolio
 
 ## Project Overview
 
-**Portfolio Tracker** é uma aplicação full-stack para rastreamento de investimentos em criptomoedas e mercado tradicional.
+**MadFolio** é uma aplicação full-stack para rastreamento de investimentos em criptomoedas e mercado tradicional.
 
 - **Status**: Desenvolvimento ativo
 - **Type**: Full-Stack JavaScript (React + Express + PostgreSQL)

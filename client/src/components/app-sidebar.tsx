@@ -73,11 +73,9 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-primary">
-            <LayoutDashboard className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img src="/madfolio-logo.png" alt="MadFolio" className="h-10 w-10 rounded-lg" />
           <div>
-            <h1 className="font-bold text-lg">InvestTracker</h1>
+            <h1 className="font-bold text-lg">MadFolio</h1>
             <p className="text-xs text-muted-foreground">Portfolio Manager</p>
           </div>
         </div>
@@ -106,7 +104,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 border-t">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">© 2025 InvestTracker</span>
+          <span className="text-xs text-muted-foreground">© 2025 MadFolio</span>
         </div>
       </SidebarFooter>
     </Sidebar>
