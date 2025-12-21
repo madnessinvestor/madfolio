@@ -160,10 +160,11 @@ npm run db:push
 
 ## Deployment
 
-The project is configured for Replit autoscale deployment:
+The project is configured for Replit VM deployment (stateful, always-on):
 - Build: `npm run build`
-- Start: `node ./dist/index.cjs`
-- Database: Uses DATABASE_URL environment variable
+- Start: `node dist/index.cjs`
+- Database: SQLite (app.db) local file
+- WebSocket support: Enabled for real-time features
 
 ## Admin Credentials
 
