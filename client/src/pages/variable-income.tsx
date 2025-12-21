@@ -226,7 +226,7 @@ export default function VariableIncomePage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <MetricCard
-            title="Valor Total"
+            title="Valorização (R$)"
             value={format(totalValue)}
             icon={BarChart3}
           />
