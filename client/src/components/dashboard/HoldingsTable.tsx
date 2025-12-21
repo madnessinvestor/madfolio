@@ -82,7 +82,7 @@ export function HoldingsTable({
                 <TableHead className="text-right">
                   {cryptoType === "holdings" ? "Cotação Atual" : cryptoType === "wallets" ? "Valor Atual" : fixedIncome || variableIncome ? "Valor Atual" : "Preço Atual"}
                 </TableHead>
-                {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets" || realEstate) && <TableHead className="text-right">{realEstate ? "Valorização (R$)" : cryptoType === "wallets" ? "Valor Total / Valorização (R$)" : "Valor Total"}</TableHead>}
+                {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets" || realEstate) && <TableHead className="text-right">{realEstate ? "Valorização (R$)" : cryptoType === "wallets" ? "Valor Total / Valorização (R$)" : fixedIncome || variableIncome ? "Valorização (R$)" : "Valor Total"}</TableHead>}
                 {cryptoType === "holdings" && <TableHead className="text-right">Lucro/Perda Total (R$)</TableHead>}
                 <TableHead className="text-right">
                   {cryptoType === "holdings" ? "Lucro/Perda (%)" : cryptoType === "wallets" ? "Lucro/Perda Total (%)" : fixedIncome || variableIncome ? "Lucro/Perda Total (%)" : "Lucro/Perda %"}
