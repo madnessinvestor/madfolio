@@ -32,6 +32,7 @@ interface HoldingsTableProps {
   fixedIncome?: boolean;
   variableIncome?: boolean;
   cryptoType?: "holdings" | "wallets";
+  realEstate?: boolean;
 }
 
 export function HoldingsTable({
@@ -44,6 +45,7 @@ export function HoldingsTable({
   fixedIncome = false,
   variableIncome = false,
   cryptoType,
+  realEstate = false,
 }: HoldingsTableProps) {
   const formatCurrency = (value: number) =>
     isHidden ? '***' : `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -75,17 +77,17 @@ export function HoldingsTable({
                 <TableHead>Ativo</TableHead>
                 <TableHead className="text-right">Quantidade</TableHead>
                 <TableHead className="text-right">
-                  {cryptoType === "holdings" ? "Preço Médio" : cryptoType === "wallets" ? "Valor Inicial" : fixedIncome || variableIncome ? "Valor Inicial" : "Preço Médio"}
+                  {realEstate ? "Valor Pago" : cryptoType === "holdings" ? "Preço Médio" : cryptoType === "wallets" ? "Valor Inicial" : fixedIncome || variableIncome ? "Valor Inicial" : "Preço Médio"}
                 </TableHead>
                 <TableHead className="text-right">
                   {cryptoType === "holdings" ? "Cotação Atual" : cryptoType === "wallets" ? "Valor Atual" : fixedIncome || variableIncome ? "Valor Atual" : "Preço Atual"}
                 </TableHead>
-                {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets") && <TableHead className="text-right">Valor Total{cryptoType === "wallets" ? " / Valorização (R$)" : ""}</TableHead>}
+                {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets" || realEstate) && <TableHead className="text-right">{realEstate ? "Valorização (R$)" : cryptoType === "wallets" ? "Valor Total / Valorização (R$)" : "Valor Total"}</TableHead>}
                 {cryptoType === "holdings" && <TableHead className="text-right">Lucro/Perda Total (R$)</TableHead>}
                 <TableHead className="text-right">
                   {cryptoType === "holdings" ? "Lucro/Perda (%)" : cryptoType === "wallets" ? "Lucro/Perda Total (%)" : fixedIncome || variableIncome ? "Lucro/Perda Total (%)" : "Lucro/Perda %"}
                 </TableHead>
-                {!fixedIncome && !variableIncome && !cryptoType && <TableHead className="text-right">24h</TableHead>}
+                {!fixedIncome && !variableIncome && !cryptoType && !realEstate && <TableHead className="text-right">24h</TableHead>}
                 <TableHead className="text-right sr-only">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -119,7 +121,7 @@ export function HoldingsTable({
                     <TableCell className="text-right tabular-nums">
                       {formatCurrency(holding.currentPrice)}
                     </TableCell>
-                    {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets") && (
+                    {(fixedIncome || variableIncome || cryptoType === "holdings" || cryptoType === "wallets" || realEstate) && (
                       <TableCell className="text-right tabular-nums">
                         <span className={isProfit ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                           {isProfit ? "+" : ""}{formatCurrency(profitLoss)}
@@ -141,7 +143,7 @@ export function HoldingsTable({
                         </span>
                       </div>
                     </TableCell>
-                    {!fixedIncome && !variableIncome && !cryptoType && (
+                    {!fixedIncome && !variableIncome && !cryptoType && !realEstate && (
                       <TableCell className="text-right">
                         <span className={`tabular-nums text-sm ${holding.change24h >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {holding.change24h >= 0 ? "+" : ""}{holding.change24h.toFixed(2)}%
