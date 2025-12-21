@@ -130,35 +130,6 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
     mutationFn: async (snapshot: any) => {
       return apiRequest("POST", "/api/snapshots", snapshot);
     },
-    onSuccess: (data, variables) => {
-      // Extract year from the snapshot date to invalidate the correct year-based query
-      const snapshotYear = new Date(variables.date).getFullYear();
-      
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots", assetId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year", snapshotYear.toString()] });
-      queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status", snapshotYear.toString()] });
-      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/assets", assetId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      toast({
-        title: "Valor atualizado",
-        description: "O valor do investimento foi registrado com sucesso.",
-      });
-      setUpdateQuantity(asset?.quantity?.toString() || "1");
-      setUpdatePrice(formatCurrencyInput(asset?.currentPrice || 0));
-      setUpdateNotes("");
-      setUpdateDate(new Date().toISOString().split("T")[0]);
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o valor.",
-        variant: "destructive",
-      });
-    },
   });
 
   const formatCurrencyInput = (value: number): string => {
@@ -227,40 +198,58 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
     const parsedPrice = parseCurrencyValue(updatePrice);
     const totalValue = parsedQuantity * parsedPrice;
 
-    await apiRequest("POST", "/api/activities", {
-      type: "snapshot",
-      category: "asset",
-      assetName: asset?.name,
-      assetSymbol: asset?.symbol,
-      action: `Valor atualizado`,
-      details: `Quantidade: ${parsedQuantity}, Valor Total: R$ ${totalValue.toFixed(2)}`,
-    }).catch(() => {});
+    try {
+      // Log activity
+      await apiRequest("POST", "/api/activities", {
+        type: "snapshot",
+        category: "asset",
+        assetName: asset?.name,
+        assetSymbol: asset?.symbol,
+        action: `Valor atualizado`,
+        details: `Quantidade: ${parsedQuantity}, Valor Total: R$ ${totalValue.toFixed(2)}`,
+      }).catch(() => {});
 
-    createSnapshotMutation.mutate(
-      {
+      // Create snapshot
+      await createSnapshotMutation.mutateAsync({
         assetId,
         date: updateDate,
         value: totalValue,
         amount: parsedQuantity,
         unitPrice: parsedPrice,
         notes: updateNotes || "Atualização manual",
-      },
-      {
-        onSuccess: async () => {
-          // Update the asset's currentPrice with the new unit price
-          try {
-            await apiRequest("PATCH", `/api/assets/${assetId}`, {
-              currentPrice: parsedPrice,
-              quantity: parsedQuantity,
-            });
-            // Close the dialog after successful update
-            onOpenChange(false);
-          } catch (error) {
-            console.error("Failed to update asset price:", error);
-          }
-        },
-      }
-    );
+      });
+
+      // Update the asset's currentPrice and quantity
+      await apiRequest("PATCH", `/api/assets/${assetId}`, {
+        currentPrice: parsedPrice,
+        quantity: parsedQuantity,
+      });
+
+      // Manually invalidate all related queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/snapshots", assetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/assets", assetId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/portfolio/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
+
+      // Show success message
+      toast({
+        title: "Valor atualizado",
+        description: "O valor do investimento foi registrado com sucesso.",
+      });
+
+      // Close the dialog after successful update
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Failed to update investment:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o valor.",
+        variant: "destructive",
+      });
+    }
   };
 
   const isSimplified = asset?.quantity === 1;
