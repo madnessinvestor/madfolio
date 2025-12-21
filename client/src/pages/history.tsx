@@ -1,18 +1,31 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PortfolioHistory } from "@shared/schema";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Calendar } from "lucide-react";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { useDisplayCurrency } from "@/hooks/use-currency";
 
+const monthNames = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 export default function HistoryPage() {
   const { displayCurrency } = useDisplayCurrency();
+  const currentYear = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(currentYear.toString());
+  
   const { data: history, isLoading } = useQuery<PortfolioHistory[]>({
     queryKey: ["/api/portfolio/history"],
   });
+
+  // Available years: 2025-2030
+  const availableYears = [2025, 2026, 2027, 2028, 2029, 2030];
 
   if (isLoading) {
     return (
@@ -22,8 +35,14 @@ export default function HistoryPage() {
     );
   }
 
+  // Filter by selected year
+  const yearData = (history || []).filter(item => {
+    const itemYear = new Date(item.date).getFullYear();
+    return itemYear === parseInt(yearFilter);
+  });
+
   // Sort by date ascending for calculation purposes
-  const sortedAscending = [...(history || [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sortedAscending = [...yearData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Calculate variations between consecutive months
   const historyWithVariations = sortedAscending.map((item, index) => {
@@ -40,10 +59,7 @@ export default function HistoryPage() {
     };
   });
 
-  // Show all available history from backend (automatically last 24 months)
-  const last24Months = historyWithVariations;
-
-  const chartData = last24Months.map(item => ({
+  const chartData = historyWithVariations.map(item => ({
     month: format(new Date(item.date), "MMM/yy", { locale: ptBR }),
     value: item.totalValue,
     variation: item.variation,
@@ -51,7 +67,7 @@ export default function HistoryPage() {
   }));
 
   // Sort descending for table display
-  const sortedDescending = [...last24Months].reverse();
+  const sortedDescending = [...historyWithVariations].reverse();
 
   const historyWithChanges = sortedDescending.map((item, index) => {
     const nextItem = sortedDescending[index + 1];
@@ -65,9 +81,23 @@ export default function HistoryPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Evolução do Portfólio</h1>
-        <p className="text-muted-foreground">Acompanhe o crescimento da sua carteira mês a mês.</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Evolução do Portfólio</h1>
+          <p className="text-muted-foreground">Acompanhe o crescimento da sua carteira mês a mês.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {availableYears.map((year) => (
+            <Button
+              key={year}
+              variant={yearFilter === year.toString() ? "default" : "outline"}
+              onClick={() => setYearFilter(year.toString())}
+              data-testid={`button-year-${year}`}
+            >
+              {year}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {chartData.length > 0 && (
@@ -76,7 +106,7 @@ export default function HistoryPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Histórico Detalhado</CardTitle>
+          <CardTitle>Extrato da Evolução do Portfólio</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -84,7 +114,7 @@ export default function HistoryPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Mês/Ano</TableHead>
-                  <TableHead className="text-right">Patrimônio Total</TableHead>
+                  <TableHead className="text-right">Valor do Portfólio</TableHead>
                   <TableHead className="text-right">Variação (R$)</TableHead>
                   <TableHead className="text-right">Variação (%)</TableHead>
                 </TableRow>
@@ -93,7 +123,7 @@ export default function HistoryPage() {
                 {historyWithChanges.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium capitalize">
-                      {format(new Date(item.date), "MMMM 'de' yyyy", { locale: ptBR })}
+                      {monthNames[new Date(item.date).getMonth()]} de {new Date(item.date).getFullYear()}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: displayCurrency }).format(item.totalValue)}
@@ -101,12 +131,12 @@ export default function HistoryPage() {
                     <TableCell className="text-right tabular-nums">
                       <div className="flex items-center justify-end gap-1">
                         {item.diff > 0 ? (
-                          <span className="text-green-500 flex items-center gap-1">
+                          <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
                             <TrendingUp className="h-4 w-4" />
                             {new Intl.NumberFormat("pt-BR", { style: "currency", currency: displayCurrency }).format(item.diff)}
                           </span>
                         ) : item.diff < 0 ? (
-                          <span className="text-red-500 flex items-center gap-1">
+                          <span className="text-red-600 dark:text-red-400 flex items-center gap-1">
                             <TrendingDown className="h-4 w-4" />
                             {new Intl.NumberFormat("pt-BR", { style: "currency", currency: displayCurrency }).format(Math.abs(item.diff))}
                           </span>
@@ -119,7 +149,7 @@ export default function HistoryPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      <span className={item.diffPercent > 0 ? "text-green-500" : item.diffPercent < 0 ? "text-red-500" : "text-muted-foreground"}>
+                      <span className={item.diffPercent > 0 ? "text-green-600 dark:text-green-400" : item.diffPercent < 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}>
                         {item.diffPercent > 0 ? "+" : ""}{item.diffPercent.toFixed(2)}%
                       </span>
                     </TableCell>
@@ -128,7 +158,7 @@ export default function HistoryPage() {
                 {historyWithChanges.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                      Nenhum dado de evolução disponível.
+                      Nenhum dado de evolução disponível para {yearFilter}.
                     </TableCell>
                   </TableRow>
                 )}
