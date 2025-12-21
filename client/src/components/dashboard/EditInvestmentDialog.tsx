@@ -253,6 +253,8 @@ export function EditInvestmentDialog({ assetId, open, onOpenChange }: EditInvest
               currentPrice: parsedPrice,
               quantity: parsedQuantity,
             });
+            // Close the dialog after successful update
+            onOpenChange(false);
           } catch (error) {
             console.error("Failed to update asset price:", error);
           }
