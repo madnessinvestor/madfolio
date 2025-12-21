@@ -73,15 +73,6 @@ app.use((req, res, next) => {
     console.error("[DB-SYNC] Error:", error);
   }
 
-  // Initialize Supabase connection
-  try {
-    const { initializeSupabase } = await import("./supabase");
-    await initializeSupabase();
-    log("[Supabase] Connected to external database");
-  } catch (error) {
-    console.error("[Supabase] Error initializing connection:", error);
-  }
-
   // Initialize SQLite database (for local auth fallback)
   try {
     const { initializeDatabase } = await import("./sqlite-db");

@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { DatabaseIndicator } from "@/components/DatabaseIndicator";
 import { CurrencySwitcher, type DisplayCurrency } from "@/components/CurrencySwitcher";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -109,7 +108,6 @@ function MainApp() {
           <header className="flex items-center justify-between gap-4 p-3 border-b bg-background sticky top-0 z-50">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-3">
-              <DatabaseIndicator />
               <CurrencySwitcher value={displayCurrency} onChange={setDisplayCurrency} />
               <button
                 onClick={() => setIsBalanceHidden(!isBalanceHidden)}
