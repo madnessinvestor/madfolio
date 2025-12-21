@@ -138,6 +138,15 @@ app.use((req, res, next) => {
     console.error("[Init] Error loading wallets from database:", error);
   }
   
+  // Start wallet monitoring (scraping every 60 minutes)
+  try {
+    const { startStepMonitor } = await import("./services/debankScraper");
+    startStepMonitor(60 * 60 * 1000); // 60 minutes
+    console.log(`[Init] Wallet monitoring started`);
+  } catch (error) {
+    console.error("[Init] Error starting wallet monitoring:", error);
+  }
+  
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
