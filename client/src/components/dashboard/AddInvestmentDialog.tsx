@@ -214,7 +214,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
         name: walletName,
         symbol: walletName.substring(0, 20).toUpperCase(),
         category: "crypto",
-        market: "crypto",
+        market: "crypto_simplified",
         quantity: 1,
         acquisitionPrice: parsedPrice,
         acquisitionDate: new Date().toISOString().split("T")[0],
@@ -232,7 +232,7 @@ export function AddInvestmentDialog({ onAdd, isLoading, existingAssets: provided
         marketType = "fixed_income";
         categoryType = "fixed_income";
       } else if (market === "variable_income_simplified") {
-        marketType = "variable_income";
+        marketType = "variable_income_simplified";
         categoryType = "stocks";
       }
 

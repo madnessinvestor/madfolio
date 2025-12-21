@@ -96,8 +96,8 @@ export default function CryptoPage() {
   });
 
   const cryptoHoldings = summary?.holdings.filter((h) => h.market === "crypto") || [];
-  const holdingsCripto = summary?.holdings.filter((h) => h.market === "Mercado Cripto") || [];
-  const walletsCripto = summary?.holdings.filter((h) => h.market === "Mercado Cripto (Simplificado)") || [];
+  const holdingsCripto = summary?.holdings.filter((h) => h.market === "crypto") || [];
+  const walletsCripto = summary?.holdings.filter((h) => h.market === "crypto_simplified") || [];
 
   const holdings: Holding[] = cryptoHoldings.map((h) => ({
     id: h.id,
