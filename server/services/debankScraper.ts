@@ -34,11 +34,11 @@ async function updateAssetForWallet(walletName: string, balance: string): Promis
     // Parse balance to number
     const balanceValue = parseFloat(balance.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
     
-    // Find asset with symbol or name matching wallet name and market crypto_simplified
+    // Find asset with name matching wallet name and market crypto_simplified
     const assets = await storage.getAssets();
     const matchingAsset = assets.find(asset => 
       asset.market === 'crypto_simplified' && 
-      (asset.symbol === walletName || asset.name === walletName)
+      asset.name === walletName
     );
     
     if (matchingAsset && balanceValue > 0) {
@@ -46,7 +46,7 @@ async function updateAssetForWallet(walletName: string, balance: string): Promis
         currentPrice: balanceValue, 
         lastPriceUpdate: new Date() 
       });
-      console.log(`[Asset Update] Updated asset ${matchingAsset.symbol} with balance ${balanceValue}`);
+      console.log(`[Asset Update] Updated asset ${matchingAsset.name} with balance ${balanceValue}`);
     }
   } catch (error) {
     console.error(`[Asset Update] Error updating asset for wallet ${walletName}:`, error);
