@@ -34,11 +34,11 @@ async function updateAssetForWallet(walletName: string, balance: string): Promis
     // Parse balance to number
     const balanceValue = parseFloat(balance.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
     
-    // Find asset with name matching wallet name and market crypto_simplified
+    // Find asset with name matching wallet name (case insensitive) and market crypto_simplified
     const assets = await storage.getAssets();
     const matchingAsset = assets.find(asset => 
       asset.market === 'crypto_simplified' && 
-      asset.name === walletName
+      asset.name.toLowerCase() === walletName.toLowerCase()
     );
     
     if (matchingAsset && balanceValue > 0) {
