@@ -481,7 +481,7 @@ export async function scrapeReadyStarknet(
 }
 
 // ============================================================================
-// APTOS / APTOSCAN SCRAPER (Opportunistic - Largest Value Strategy)
+// APTOS / APTOSCAN SCRAPER (Specific - Value below COIN VALUE)
 // ============================================================================
 
 export async function scrapeAptoscanAptos(
@@ -495,7 +495,7 @@ export async function scrapeAptoscanAptos(
   }, timeoutMs);
   
   try {
-    console.log('[Aptoscan] Starting Aptos scraper (opportunistic)');
+    console.log('[Aptoscan] Starting Aptos scraper (specific COIN VALUE)');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
@@ -507,9 +507,37 @@ export async function scrapeAptoscanAptos(
     // Wait for rendering (up to 30 seconds for complete page load)
     await new Promise(resolve => setTimeout(resolve, 30000));
     
-    // Extract ALL text and find largest value
+    // Extract value below "COIN VALUE"
     const value = await page.evaluate(() => {
       const fullText = document.body.innerText;
+      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.toUpperCase().includes('COIN VALUE')) {
+          console.log('[Aptoscan] Found COIN VALUE at line ' + i + ': ' + line);
+          
+          // Look at the next few lines for a dollar value
+          for (let j = 1; j <= 5 && i + j < lines.length; j++) {
+            const nextLine = lines[i + j];
+            console.log('[Aptoscan] Checking line ' + (i + j) + ': ' + nextLine);
+            
+            // Look for dollar value in this line
+            const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
+            if (dollarMatch) {
+              const extractedValue = dollarMatch[0];
+              const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
+              if (numValue > 0) {
+                console.log('[Aptoscan] Found value below COIN VALUE: ' + extractedValue);
+                return extractedValue;
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: Extract ALL text and find largest value
+      console.log('[Aptoscan] COIN VALUE not found, falling back to largest value strategy');
       const regex = /\$[\d,]+(?:\.\d{2})?/g;
       const matches = fullText.match(regex);
       
@@ -529,7 +557,7 @@ export async function scrapeAptoscanAptos(
     });
     
     if (value) {
-      console.log('[Aptoscan] Extracted largest value: ' + value);
+      console.log('[Aptoscan] Extracted value: ' + value);
       return { value, success: true, platform: 'aptoscan' };
     }
     
@@ -545,7 +573,7 @@ export async function scrapeAptoscanAptos(
 }
 
 // ============================================================================
-// SEI / SEISCAN SCRAPER (Opportunistic - Largest Value Strategy)
+// SEI / SEISCAN SCRAPER (Specific - Value below SEI VALUE)
 // ============================================================================
 
 export async function scrapeSeiscanSei(
@@ -559,7 +587,7 @@ export async function scrapeSeiscanSei(
   }, timeoutMs);
   
   try {
-    console.log('[Seiscan] Starting Sei scraper (opportunistic)');
+    console.log('[Seiscan] Starting Sei scraper (specific SEI VALUE)');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
@@ -571,9 +599,37 @@ export async function scrapeSeiscanSei(
     // Wait for rendering (up to 30 seconds for complete page load)
     await new Promise(resolve => setTimeout(resolve, 30000));
     
-    // Extract ALL text and find largest value
+    // Extract value below "SEI VALUE"
     const value = await page.evaluate(() => {
       const fullText = document.body.innerText;
+      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.toUpperCase().includes('SEI VALUE')) {
+          console.log('[Seiscan] Found SEI VALUE at line ' + i + ': ' + line);
+          
+          // Look at the next few lines for a dollar value
+          for (let j = 1; j <= 5 && i + j < lines.length; j++) {
+            const nextLine = lines[i + j];
+            console.log('[Seiscan] Checking line ' + (i + j) + ': ' + nextLine);
+            
+            // Look for dollar value in this line
+            const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
+            if (dollarMatch) {
+              const extractedValue = dollarMatch[0];
+              const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
+              if (numValue > 0) {
+                console.log('[Seiscan] Found value below SEI VALUE: ' + extractedValue);
+                return extractedValue;
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: Extract ALL text and find largest value
+      console.log('[Seiscan] SEI VALUE not found, falling back to largest value strategy');
       const regex = /\$[\d,]+(?:\.\d{2})?/g;
       const matches = fullText.match(regex);
       
@@ -593,7 +649,7 @@ export async function scrapeSeiscanSei(
     });
     
     if (value) {
-      console.log('[Seiscan] Extracted largest value: ' + value);
+      console.log('[Seiscan] Extracted value: ' + value);
       return { value, success: true, platform: 'seiscan' };
     }
     
