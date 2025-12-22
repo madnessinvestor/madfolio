@@ -6,7 +6,6 @@ import { promisify } from 'node:util';
 import { addCacheEntry } from './walletCache';
 import { selectAndScrapePlatform } from './platformScrapers';
 import { storage } from '../storage';
-import { fetchExchangeRates } from './exchangeRate';
 
 puppeteerExtra.use(StealthPlugin());
 const execAsync = promisify(exec);
@@ -32,12 +31,8 @@ let WALLETS: WalletConfig[] = [];
 
 async function updateAssetForWallet(walletName: string, balance: string): Promise<void> {
   try {
-    // Parse balance to number (assuming it's in USD)
-    const usdValue = parseFloat(balance.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
-    
-    // Fetch exchange rates and convert to BRL
-    const rates = await fetchExchangeRates();
-    const brlValue = usdValue * (rates.USD || 1);
+    // Parse balance to number (already in BRL as saved by Wallet Tracker)
+    const brlValue = parseFloat(balance.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
     
     // Find asset with name matching wallet name (case insensitive) and market crypto_simplified
     const assets = await storage.getAssets();
@@ -51,7 +46,7 @@ async function updateAssetForWallet(walletName: string, balance: string): Promis
         currentPrice: brlValue, 
         lastPriceUpdate: new Date() 
       });
-      console.log(`[Asset Update] Updated asset ${matchingAsset.name} with BRL value ${brlValue} (from USD ${usdValue})`);
+      console.log(`[Asset Update] Updated asset ${matchingAsset.name} with BRL value ${brlValue}`);
     }
   } catch (error) {
     console.error(`[Asset Update] Error updating asset for wallet ${walletName}:`, error);
