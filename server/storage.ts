@@ -321,9 +321,9 @@ export class DatabaseStorage implements IStorage {
 
   async getWallets(userId?: string): Promise<Wallet[]> {
     if (userId) {
-      return db.select().from(wallets).where(eq(wallets.userId, userId)).orderBy(wallets.name);
+      return db.select().from(wallets).where(and(eq(wallets.userId, userId), eq(wallets.isDeleted, 0))).orderBy(wallets.name);
     }
-    return db.select().from(wallets).orderBy(wallets.name);
+    return db.select().from(wallets).where(eq(wallets.isDeleted, 0)).orderBy(wallets.name);
   }
 
   async createWallet(wallet: InsertWallet): Promise<Wallet> {
@@ -341,15 +341,38 @@ export class DatabaseStorage implements IStorage {
 
   async deleteWallet(id: string): Promise<boolean> {
     try {
-      console.log(`[SQLite] Deleting wallet:`, id);
-      const result = await db.delete(wallets).where(eq(wallets.id, id)).returning();
-      if (result.length > 0) {
-        console.log(`[SQLite] ✓ Wallet deleted successfully`);
-        await autoCommit(`feat: Delete wallet ${result[0].name}`);
-      } else {
-        console.log(`[SQLite] ✗ No wallet found with id: ${id}`);
+      // Validate ID parameter
+      if (!id || typeof id !== 'string' || id.trim().length === 0) {
+        console.error(`[SQLite] ✗ Invalid wallet ID:`, id);
+        throw new Error('Invalid wallet ID provided');
       }
-      return result.length > 0;
+
+      console.log(`[SQLite] Soft-deleting wallet:`, id);
+      
+      // Check if wallet exists first
+      const [existingWallet] = await db.select().from(wallets).where(eq(wallets.id, id));
+      if (!existingWallet) {
+        console.log(`[SQLite] ✗ Wallet not found with id: ${id}`);
+        throw new Error('Wallet not found');
+      }
+      
+      // Soft delete: mark as deleted instead of removing
+      const result = await db.update(wallets)
+        .set({
+          isDeleted: 1,
+          deletedAt: new Date()
+        })
+        .where(eq(wallets.id, id))
+        .returning();
+      
+      if (result.length === 0) {
+        console.log(`[SQLite] ✗ Failed to delete wallet: no rows affected`);
+        throw new Error('Failed to delete wallet: database update failed');
+      }
+      
+      console.log(`[SQLite] ✓ Wallet soft-deleted successfully:`, result[0].name);
+      await autoCommit(`feat: Delete wallet ${result[0].name}`);
+      return true;
     } catch (error) {
       console.error(`[SQLite] ✗ Error deleting wallet:`, error);
       throw error;

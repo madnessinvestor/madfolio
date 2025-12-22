@@ -1144,6 +1144,13 @@ export async function registerRoutes(
     const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
       const walletId = req.params.id;
+      
+      // Validate wallet ID
+      if (!walletId || typeof walletId !== 'string' || walletId.trim().length === 0) {
+        console.log(`[Wallet] Invalid wallet ID provided: ${walletId}`);
+        return res.status(400).json({ error: "Invalid wallet ID provided" });
+      }
+      
       console.log(`[Wallet] Attempting to delete wallet: ${walletId} for user: ${userId}`);
       
       const userWallets = await storage.getWallets(userId);
@@ -1151,9 +1158,10 @@ export async function registerRoutes(
       
       if (!walletToDelete) {
         console.log(`[Wallet] Wallet not found: ${walletId}`);
-        return res.status(404).json({ error: "Wallet not found" });
+        return res.status(404).json({ error: "Wallet not found or already deleted" });
       }
       
+      // Delete wallet with validation
       const deleted = await storage.deleteWallet(walletId);
       if (!deleted) {
         console.log(`[Wallet] Failed to delete wallet from storage: ${walletId}`);
@@ -1164,10 +1172,20 @@ export async function registerRoutes(
       const updatedWallets = await storage.getWallets(userId);
       setWallets(updatedWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
       
-      res.json({ success: true, message: "Wallet deleted successfully" });
+      res.json({ success: true, message: `Wallet "${walletToDelete.name}" deleted successfully` });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[Wallet] Error deleting wallet:`, error);
-      res.status(500).json({ error: "Failed to delete wallet", details: String(error) });
+      
+      // Return specific error messages
+      if (errorMessage.includes('Invalid wallet ID')) {
+        return res.status(400).json({ error: "Invalid wallet ID provided" });
+      }
+      if (errorMessage.includes('Wallet not found')) {
+        return res.status(404).json({ error: "Wallet not found or already deleted" });
+      }
+      
+      res.status(500).json({ error: "Failed to delete wallet", details: errorMessage });
     }
   });
 

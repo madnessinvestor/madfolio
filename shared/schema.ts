@@ -62,6 +62,8 @@ export const wallets = sqliteTable("wallets", {
   name: text("name").notNull(),
   link: text("link").notNull(),
   platform: text("platform").notNull().default("debank"),
+  isDeleted: integer("is_deleted").default(0),
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(unixepoch())`),
 });
 

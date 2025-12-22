@@ -29,6 +29,27 @@ try {
   console.warn('[DB] Migration check/execution warning:', error);
 }
 
+// Add soft delete columns to wallets table
+try {
+  const walletTableInfo = sqlite.prepare("PRAGMA table_info(wallets)").all() as any[];
+  const hasIsDeletedColumn = walletTableInfo.some((col: any) => col.name === 'is_deleted');
+  const hasDeletedAtColumn = walletTableInfo.some((col: any) => col.name === 'deleted_at');
+  
+  if (!hasIsDeletedColumn) {
+    console.log('[DB] Adding is_deleted column to wallets table...');
+    sqlite.exec(`ALTER TABLE wallets ADD COLUMN is_deleted INTEGER DEFAULT 0`);
+    console.log('[DB] ✓ is_deleted column added successfully');
+  }
+  
+  if (!hasDeletedAtColumn) {
+    console.log('[DB] Adding deleted_at column to wallets table...');
+    sqlite.exec(`ALTER TABLE wallets ADD COLUMN deleted_at INTEGER`);
+    console.log('[DB] ✓ deleted_at column added successfully');
+  }
+} catch (error) {
+  console.warn('[DB] Migration check/execution warning:', error);
+}
+
 export const db = drizzle(sqlite, { schema });
 
 console.log(`[DB] ✓ SQLite initialized successfully`);
