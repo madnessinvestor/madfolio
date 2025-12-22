@@ -7,7 +7,7 @@ import { addCacheEntry } from './walletCache';
 import { selectAndScrapePlatform } from './platformScrapers';
 import { storage } from '../storage';
 import { readCache } from './walletCache';
-import { convertToBRL } from './exchangeRate';
+import { convertToBRL, getExchangeRate } from './exchangeRate';
 
 puppeteerExtra.use(StealthPlugin());
 const execAsync = promisify(exec);
@@ -417,11 +417,21 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
             if (usdValue > 0) {
               console.log(`[Sequential] Valid value found: ${balance.balance} (parsed as ${usdValue} USD)`);
 
-              // Convert USD to BRL if needed
+              // Convert USD to BRL using REAL exchange rate (never assume 1:1 parity)
+              // Always fetch current USD/BRL rate from exchange rate service
               let brlValue = usdValue;
               if (balance.balance.includes('$')) {
-                brlValue = await convertToBRL(usdValue, 'USD');
-                console.log(`[Sequential] Converted ${usdValue} USD to ${brlValue.toFixed(2)} BRL`);
+                const exchangeRate = await getExchangeRate('USD');
+
+                // Validate exchange rate is reasonable (between 3.0 and 7.0 BRL per USD)
+                if (exchangeRate < 3.0 || exchangeRate > 7.0) {
+                  console.error(`[Sequential] Invalid exchange rate: ${exchangeRate} - using fallback 5.5`);
+                  brlValue = usdValue * 5.5;
+                } else {
+                  brlValue = usdValue * exchangeRate;
+                }
+
+                console.log(`[Sequential] Converted ${usdValue} USD × ${exchangeRate.toFixed(4)} = ${brlValue.toFixed(2)} BRL`);
               }
 
               // Update balance with numeric BRL value (no formatting)
