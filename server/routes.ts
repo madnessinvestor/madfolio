@@ -1143,24 +1143,31 @@ export async function registerRoutes(
   app.delete("/api/wallets/:id", async (req: any, res) => {
     const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
+      const walletId = req.params.id;
+      console.log(`[Wallet] Attempting to delete wallet: ${walletId} for user: ${userId}`);
+      
       const userWallets = await storage.getWallets(userId);
-      const walletExists = userWallets.some(w => w.id === req.params.id);
+      const walletToDelete = userWallets.find(w => w.id === walletId);
       
-      if (!walletExists) {
+      if (!walletToDelete) {
+        console.log(`[Wallet] Wallet not found: ${walletId}`);
         return res.status(404).json({ error: "Wallet not found" });
       }
       
-      const deleted = await storage.deleteWallet(req.params.id);
+      const deleted = await storage.deleteWallet(walletId);
       if (!deleted) {
-        return res.status(404).json({ error: "Wallet not found" });
+        console.log(`[Wallet] Failed to delete wallet from storage: ${walletId}`);
+        return res.status(500).json({ error: "Failed to delete wallet from database" });
       }
       
+      console.log(`[Wallet] ✓ Deleted wallet: ${walletToDelete.name}`);
       const updatedWallets = await storage.getWallets(userId);
       setWallets(updatedWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
       
-      res.status(204).send();
+      res.json({ success: true, message: "Wallet deleted successfully" });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete wallet" });
+      console.error(`[Wallet] Error deleting wallet:`, error);
+      res.status(500).json({ error: "Failed to delete wallet", details: String(error) });
     }
   });
 

@@ -256,7 +256,19 @@ export function getBalances(): string[] {
 }
 
 export function getDetailedBalances(): WalletBalance[] {
-  return Array.from(balanceCache.values());
+  // Ensure all wallets have at least their last known value
+  const balances = Array.from(balanceCache.values()).map(wallet => {
+    // If balance is "Carregando..." or "Indisponível", try to use last known value
+    if ((wallet.balance === "Carregando..." || wallet.balance === "Indisponível") && wallet.lastKnownValue) {
+      return {
+        ...wallet,
+        balance: wallet.lastKnownValue,
+        status: 'temporary_error' as const,
+      };
+    }
+    return wallet;
+  });
+  return balances;
 }
 
 export function initializeWallet(wallet: WalletConfig): void {
@@ -268,7 +280,8 @@ export function initializeWallet(wallet: WalletConfig): void {
       balance: 'Carregando...',
       lastUpdated: new Date(),
       status: 'unavailable',
-      error: 'Aguardando primeira coleta'
+      error: 'Aguardando primeira coleta',
+      lastKnownValue: undefined
     });
     console.log(`[Init] Initialized wallet ${wallet.name} in cache`);
   }

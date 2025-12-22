@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw, Wallet, ExternalLink, Trash2, Plus, TrendingUp, TrendingDown, Eye, EyeOff } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -47,10 +47,15 @@ export default function WalletTracker() {
     });
   };
 
-  const { data: balances, isLoading, error } = useQuery<WalletBalance[]>({
+  const { data: balances, isLoading, error, refetch } = useQuery<WalletBalance[]>({
     queryKey: ["/api/saldo/detailed"],
     refetchInterval: 60000,
   });
+
+  // Auto-refresh wallet balances when component mounts
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/saldo/stats", selectedWalletForHistory],
@@ -121,9 +126,10 @@ export default function WalletTracker() {
     mutationFn: async (walletId: string) => {
       const response = await apiRequest("DELETE", `/api/wallets/${walletId}`);
       if (!response.ok) {
-        throw new Error(`Failed to delete wallet: ${response.status}`);
+        const errorText = await response.text().catch(() => "Unknown error");
+        throw new Error(`Failed to delete wallet: ${response.status} - ${errorText}`);
       }
-      return { success: true };
+      return response.json().catch(() => ({ success: true }));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
