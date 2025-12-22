@@ -42,12 +42,12 @@ async function updateAssetForWallet(walletName: string, balance: string): Promis
       asset.name.toLowerCase() === walletName.toLowerCase()
     );
     
-    if (matchingAsset && brlValue > 0) {
+    if (matchingAsset && brlValue > 0 && matchingAsset.currentPrice !== brlValue) {
       await storage.updateAsset(matchingAsset.id, { 
         currentPrice: brlValue, 
         lastPriceUpdate: new Date() 
       });
-      console.log(`[Asset Update] Updated asset ${matchingAsset.name} with BRL value ${brlValue}`);
+      console.log(`[Asset Update] Updated asset ${matchingAsset.name} from ${matchingAsset.currentPrice} to ${brlValue} BRL`);
     }
   } catch (error) {
     console.error(`[Asset Update] Error updating asset for wallet ${walletName}:`, error);
@@ -58,11 +58,14 @@ export function syncWalletsToAssets(): void {
   try {
     const cache = readCache();
     for (const entry of cache.entries) {
-      if (entry.status === 'success' && parseFloat(entry.balance.replace(/[^\d.,]/g, '').replace(',', '.')) > 0) {
-        updateAssetForWallet(entry.walletName, entry.balance);
+      if (entry.status === 'success') {
+        const brlValue = parseFloat(entry.balance.replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+        if (brlValue > 0) {
+          updateAssetForWallet(entry.walletName, entry.balance);
+        }
       }
     }
-    console.log(`[Sync] Synchronized ${cache.entries.length} wallets to assets`);
+    console.log(`[Sync] Synchronized wallets to assets`);
   } catch (error) {
     console.error('[Sync] Error synchronizing wallets to assets:', error);
   }
