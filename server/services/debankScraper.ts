@@ -30,6 +30,13 @@ let WALLETS: WalletConfig[] = [];
 
 export function setWallets(newWallets: WalletConfig[]): void {
   WALLETS = newWallets;
+  // Clean balanceCache to remove deleted wallets
+  const newNames = new Set(newWallets.map(w => w.name));
+  for (const [name] of balanceCache) {
+    if (!newNames.has(name)) {
+      balanceCache.delete(name);
+    }
+  }
 }
 
 const balanceCache = new Map<string, WalletBalance>();
@@ -355,11 +362,13 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
 // ============================================================================
 
 export function getBalances(): string[] {
-  return Array.from(balanceCache.values()).map(w => w.balance);
+  const walletNames = new Set(WALLETS.map(w => w.name));
+  return Array.from(balanceCache.values()).filter(balance => walletNames.has(balance.name)).map(w => w.balance);
 }
 
 export function getDetailedBalances(): WalletBalance[] {
-  return Array.from(balanceCache.values());
+  const walletNames = new Set(WALLETS.map(w => w.name));
+  return Array.from(balanceCache.values()).filter(balance => walletNames.has(balance.name));
 }
 
 export function initializeWallet(wallet: WalletConfig): void {
