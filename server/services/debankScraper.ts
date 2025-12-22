@@ -420,7 +420,15 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
               // Convert USD to BRL using REAL exchange rate (never assume 1:1 parity)
               // Always fetch current USD/BRL rate from exchange rate service
               let brlValue = usdValue;
-              if (balance.balance.includes('$')) {
+              let isUSD = false;
+
+              // Detect USD values: either contains '$' or has thousand separator (indicating US format)
+              if (balance.balance.includes('$') || balance.balance.includes(',')) {
+                isUSD = true;
+              }
+
+              if (isUSD) {
+                // Value is in USD - convert to BRL
                 const exchangeRate = await getExchangeRate('USD');
 
                 // Validate exchange rate is reasonable (between 3.0 and 7.0 BRL per USD)
@@ -432,6 +440,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
                 }
 
                 console.log(`[Sequential] Converted ${usdValue} USD × ${exchangeRate.toFixed(4)} = ${brlValue.toFixed(2)} BRL`);
+              } else {
+                // Value appears to already be in BRL
+                brlValue = usdValue;
+                console.log(`[Sequential] Value ${usdValue} assumed to be already in BRL`);
               }
 
               // Update balance with numeric BRL value (no formatting)
