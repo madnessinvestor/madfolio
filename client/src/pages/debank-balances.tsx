@@ -242,7 +242,7 @@ export default function WalletTracker() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        {balances?.map((wallet) => (
+        {balances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
           <Card key={wallet.id || wallet.name} data-testid={`card-wallet-${wallet.id || wallet.name}`}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
