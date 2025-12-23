@@ -276,7 +276,7 @@ async function scrapeWalletWithTimeout(
           
           if (fallbackValue) {
             console.log(`[Main] Scrape failed${isBrowserUnavailable ? ' (browser unavailable)' : ''}, using fallback: ${fallbackValue}`);
-            addCacheEntry(wallet.name, fallbackValue, result.platform, 'temporary_error');
+            // ✅ Fallback já está no histórico, não salvar novamente
             
             resolve({
               id: wallet.id,
@@ -367,7 +367,7 @@ async function scrapeWalletWithTimeout(
         let fallbackValue = cached?.lastKnownValue || (historicalValue ? historicalValue : undefined);
         
         if (fallbackValue) {
-          addCacheEntry(wallet.name, fallbackValue, 'unknown', 'temporary_error');
+          // ✅ Fallback já está no histórico, não salvar novamente
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -379,7 +379,7 @@ async function scrapeWalletWithTimeout(
             error: 'Timeout - using cached value'
           });
         } else {
-          addCacheEntry(wallet.name, 'Indisponível', 'unknown', 'unavailable');
+          // ❌ NÃO salvar "Indisponível" no histórico
           resolve({
             id: wallet.id,
             name: wallet.name,

@@ -58,26 +58,37 @@ export function addCacheEntry(
   platform: string,
   status: 'success' | 'temporary_error' | 'unavailable'
 ): void {
-  // 🚨 REGRA RÍGIDA: Apenas valores válidos podem ser salvos no histórico
-  // Não salvar: "Indisponível", "Carregando", "Loading", ou strings não numéricas
-  const isInvalidValue = 
+  // 🚨 REGRA ABSOLUTA: Apenas valores numéricos válidos podem ser salvos no histórico
+  // ❌ NUNCA salvar: "Indisponível", "Carregando", "Loading", "Falha", "Timeout", ou qualquer string
+  
+  // 1. Bloquear strings conhecidas de estados inválidos
+  const isInvalidString = 
     balance === 'Indisponível' || 
     balance === 'Carregando...' || 
     balance === 'Loading...' ||
     balance === 'Carregando' ||
+    balance === 'Falha' ||
+    balance === 'Timeout' ||
     balance === '' ||
-    status === 'unavailable';
+    status === 'unavailable' ||
+    status === 'temporary_error'; // ❌ temporary_error também NÃO deve salvar no histórico
   
-  if (isInvalidValue) {
-    console.log(`[Cache] Skipping invalid value for ${walletName}: "${balance}" (status: ${status}) - not saving to history`);
+  if (isInvalidString) {
+    console.log(`[Cache] ❌ Blocked invalid string for ${walletName}: "${balance}" (status: ${status}) - NOT saving to history`);
     return; // Não salva no histórico
   }
   
-  // Validar que o valor é numérico
+  // 2. Validar que o valor é numérico válido e finito
   const numericValue = parseFloat(balance.replace(/[$,]/g, ''));
-  if (isNaN(numericValue) || numericValue <= 0) {
-    console.log(`[Cache] Skipping non-numeric or zero value for ${walletName}: "${balance}" - not saving to history`);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    console.log(`[Cache] ❌ Blocked non-numeric or invalid value for ${walletName}: "${balance}" (parsed: ${numericValue}) - NOT saving to history`);
     return; // Não salva valores inválidos
+  }
+  
+  // 3. Status DEVE ser 'success' para salvar no histórico
+  if (status !== 'success') {
+    console.log(`[Cache] ❌ Blocked non-success status for ${walletName}: status="${status}" - NOT saving to history`);
+    return;
   }
   
   const cache = readCache();
