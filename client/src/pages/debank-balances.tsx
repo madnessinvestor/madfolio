@@ -51,12 +51,39 @@ export default function WalletTracker() {
     queryKey: ["/api/saldo/detailed"],
     refetchInterval: false, // Desabilitado para evitar race conditions
     staleTime: 30000, // Cache válido por 30 segundos
+    retry: 1, // Tentar apenas 1 vez para evitar delay
+    refetchOnWindowFocus: false, // Evitar refetch automático
   });
 
   // Auto-refresh wallet balances when component mounts
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  // Processar balances para garantir que nunca fiquem presos em "Carregando..."
+  const processedBalances = balances?.map(wallet => {
+    // Se o balance é "Carregando..." ou "Loading...", usar lastKnownValue como fallback
+    if ((wallet.balance === "Carregando..." || wallet.balance === "Loading..." || wallet.balance === "Indisponível") && wallet.lastKnownValue) {
+      return {
+        ...wallet,
+        balance: wallet.lastKnownValue,
+        status: 'temporary_error' as const,
+      };
+    }
+    return wallet;
+  });
+
+  // Timeout de segurança: limpar wallets em atualização após 90 segundos
+  useEffect(() => {
+    if (updatingWallets.size > 0) {
+      const timeout = setTimeout(() => {
+        setUpdatingWallets(new Set());
+        queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
+      }, 90000); // 90 segundos
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [updatingWallets]);
 
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/saldo/stats", selectedWalletForHistory],
@@ -91,11 +118,19 @@ export default function WalletTracker() {
       });
     },
     onError: () => {
+      // Mesmo em erro, força refetch para obter fallback values
+      queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       toast({
         title: "Erro",
         description: "Falha ao atualizar os saldos.",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // Garantir que sempre atualize após finalizar (sucesso ou erro)
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
+      }, 1000);
     },
   });
 
@@ -166,11 +201,19 @@ export default function WalletTracker() {
       });
     },
     onError: () => {
+      // Mesmo em erro, força refetch para obter fallback values
+      queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       toast({
         title: "Erro",
         description: "Falha ao atualizar wallet.",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      // Garantir que sempre atualize após finalizar
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
+      }, 1000);
     },
   });
 
@@ -243,7 +286,7 @@ export default function WalletTracker() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        {balances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
+        {processedBalances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
           <Card key={wallet.id || wallet.name} data-testid={`card-wallet-${wallet.id || wallet.name}`}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
