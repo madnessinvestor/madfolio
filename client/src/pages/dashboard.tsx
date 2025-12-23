@@ -2,7 +2,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ExposureCard } from "@/components/dashboard/ExposureCard";
 import { PortfolioHoldings } from "@/components/dashboard/PortfolioHoldings";
 import { AddInvestmentDialog, type Investment, type Snapshot } from "@/components/dashboard/AddInvestmentDialog";
-import { Wallet, TrendingUp, Landmark, BarChart3, Building2, Calendar, Loader2, Save, Lock, ArrowRight } from "lucide-react";
+import { Wallet, TrendingUp, Landmark, BarChart3, Building2, Calendar, Loader2, Lock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
