@@ -58,6 +58,28 @@ export function addCacheEntry(
   platform: string,
   status: 'success' | 'temporary_error' | 'unavailable'
 ): void {
+  // 🚨 REGRA RÍGIDA: Apenas valores válidos podem ser salvos no histórico
+  // Não salvar: "Indisponível", "Carregando", "Loading", ou strings não numéricas
+  const isInvalidValue = 
+    balance === 'Indisponível' || 
+    balance === 'Carregando...' || 
+    balance === 'Loading...' ||
+    balance === 'Carregando' ||
+    balance === '' ||
+    status === 'unavailable';
+  
+  if (isInvalidValue) {
+    console.log(`[Cache] Skipping invalid value for ${walletName}: "${balance}" (status: ${status}) - not saving to history`);
+    return; // Não salva no histórico
+  }
+  
+  // Validar que o valor é numérico
+  const numericValue = parseFloat(balance.replace(/[$,]/g, ''));
+  if (isNaN(numericValue) || numericValue <= 0) {
+    console.log(`[Cache] Skipping non-numeric or zero value for ${walletName}: "${balance}" - not saving to history`);
+    return; // Não salva valores inválidos
+  }
+  
   const cache = readCache();
   
   const entry: CacheEntry = {
@@ -84,7 +106,7 @@ export function addCacheEntry(
   }
 
   writeCache(cache);
-  console.log(`[Cache] Added entry for ${walletName}: ${balance} (keeping last 20)`);
+  console.log(`[Cache] ✓ Added valid entry for ${walletName}: ${balance} (keeping last 20)`);
 }
 
 // Get wallet history

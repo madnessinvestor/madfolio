@@ -28,7 +28,8 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   startPriceUpdater(5 * 60 * 1000);
-  startStepMonitor(5 * 60 * 1000); // 5 minutes with 5 second spacing between wallets
+  // startStepMonitor is called in server/index.ts with 60 minute interval
+  // Do not call it here to avoid duplicate monitoring
 
   // SQLite authentication routes
   app.get("/health", (req, res) => {

@@ -123,6 +123,7 @@ export async function syncPortfolioEvolution(userId: string = "default-user"): P
     // Atualizar snapshots para anos 2025-2030
     let updatedCount = 0;
     let skippedCount = 0;
+    let totalAssetsUpdated = 0; // Total de snapshots de ativos atualizados
     
     for (let year = 2025; year <= 2030; year++) {
       let assetsUpdated = 0; // Reset counter for each year
@@ -199,6 +200,7 @@ export async function syncPortfolioEvolution(userId: string = "default-user"): P
         
         console.log(`[Portfolio Sync] ✓ ${year}-${currentMonth.toString().padStart(2, '0')}: Updated total to R$ ${totalValue.toFixed(2)} + ${assetsUpdated} asset snapshots`);
         updatedCount++;
+        totalAssetsUpdated += assetsUpdated;
         
       } catch (error) {
         console.error(`[Portfolio Sync] ✗ Error updating snapshot for ${year}-${currentMonth}:`, error);
@@ -206,7 +208,7 @@ export async function syncPortfolioEvolution(userId: string = "default-user"): P
     }
     
     console.log(`[Portfolio Sync] ========================================`);
-    console.log(`[Portfolio Sync] ✓ Sync completed: ${updatedCount} months updated, ${skippedCount} locked (preserved), ${assetsUpdated} asset snapshots updated`);
+    console.log(`[Portfolio Sync] ✓ Sync completed: ${updatedCount} months updated, ${skippedCount} locked (preserved), ${totalAssetsUpdated} asset snapshots updated`);
     console.log(`[Portfolio Sync] ========================================`);
     
   } catch (error) {

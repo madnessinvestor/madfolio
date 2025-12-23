@@ -587,10 +587,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
             console.log(`[Sequential] Scrape failed or returned invalid status: ${balance.status}`);
           }
           
-          // If value is invalid and we have more attempts, wait 5 seconds
+          // If value is invalid and we have more attempts, wait 10 seconds
           if (!validValue && attempts < maxAttempts) {
-            console.log(`[Sequential] Waiting 5 seconds before retry...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.log(`[Sequential] Waiting 10 seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
           
         } catch (error) {
@@ -614,10 +614,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
             validValue = true;
           }
           
-          // If error and we have more attempts, wait 5 seconds
+          // If error and we have more attempts, wait 10 seconds
           if (!validValue && attempts < maxAttempts) {
-            console.log(`[Sequential] Waiting 5 seconds before retry after error...`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            console.log(`[Sequential] Waiting 10 seconds before retry after error...`);
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
         }
       }
@@ -656,10 +656,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
       
       console.log(`[Sequential] Final result for ${wallet.name}: ${finalBalance?.balance} (${finalBalance?.status})`);
       
-      // 5 second delay between wallets (reduzido de 10s)
+      // 10 second delay between wallets (para respeitar rate limits)
       if (i < wallets.length - 1) {
-        console.log(`[Sequential] Waiting 5 seconds before next wallet...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log(`[Sequential] Waiting 10 seconds before next wallet...`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
       }
     }
 
