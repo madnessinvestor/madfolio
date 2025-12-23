@@ -129,20 +129,36 @@ export async function scrapeDebankEVM(
     }
     
     // DOM scraping fallback
-    await page.goto(walletLink, { waitUntil: 'domcontentloaded', timeout: 50000 }).catch(e => 
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 50000 }).catch(e => 
       console.log('[DeBank] Navigation warning: ' + e.message)
     );
     
-    // Wait for JS rendering (up to 15 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    // Try multiple times with increasing wait times to ensure content is loaded
+    let value = null;
+    const maxAttempts = 3;
     
-    const value = await extractDebankNetWorthEVM(page);
+    for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
+      console.log(`[DeBank] Extraction attempt ${attempt}/${maxAttempts}`);
+      
+      // Progressive wait: 8s, 12s, 18s
+      const waitTime = 5000 + (attempt * 5000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      value = await extractDebankNetWorthEVM(page);
+      
+      if (value) {
+        console.log(`[DeBank] Successfully extracted value on attempt ${attempt}: ${value}`);
+        break;
+      } else if (attempt < maxAttempts) {
+        console.log(`[DeBank] No value found on attempt ${attempt}, retrying...`);
+      }
+    }
     
     if (value) {
       return { value, success: true, platform: 'debank' };
     }
     
-    return { value: null, success: false, platform: 'debank', error: 'Net Worth not found in DOM' };
+    return { value: null, success: false, platform: 'debank', error: 'Net Worth not found in DOM after multiple attempts' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[DeBank] Error:', msg);
@@ -372,40 +388,55 @@ export async function scrapeJupiterSolana(
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
     // Navigate and wait for initial load
-    await page.goto(walletLink, { waitUntil: 'domcontentloaded', timeout: 50000 }).catch(e => 
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 50000 }).catch(e => 
       console.log('[Jupiter] Navigation warning: ' + e.message)
     );
     
-    // Wait for initial rendering (up to 15 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    // Try multiple times with progressive wait to ensure content is loaded
+    let value = null;
+    const maxAttempts = 3;
     
-    // Extract ALL text and find largest value
-    const value = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      const regex = /\$[\d,]+(?:\.\d{2})?/g;
-      const matches = fullText.match(regex);
+    for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
+      console.log(`[Jupiter] Extraction attempt ${attempt}/${maxAttempts}`);
       
-      if (!matches || matches.length === 0) return null;
+      // Progressive wait: 8s, 12s, 18s
+      const waitTime = 5000 + (attempt * 5000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
       
-      const values = matches
-        .map(m => ({
-          str: m,
-          num: parseFloat(m.replace(/[$,]/g, ''))
-        }))
-        .filter(v => v.num >= 10); // Ignore < $10
+      // Extract ALL text and find largest value
+      value = await page.evaluate(() => {
+        const fullText = document.body.innerText;
+        const regex = /\$[\d,]+(?:\.\d{2})?/g;
+        const matches = fullText.match(regex);
+        
+        if (!matches || matches.length === 0) return null;
+        
+        const values = matches
+          .map(m => ({
+            str: m,
+            num: parseFloat(m.replace(/[$,]/g, ''))
+          }))
+          .filter(v => v.num >= 10); // Ignore < $10
+        
+        if (values.length === 0) return null;
+        
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
+      });
       
-      if (values.length === 0) return null;
-      
-      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
-      return maxValue.str;
-    });
+      if (value) {
+        console.log(`[Jupiter] Extracted largest value on attempt ${attempt}: ${value}`);
+        break;
+      } else if (attempt < maxAttempts) {
+        console.log(`[Jupiter] No value found on attempt ${attempt}, retrying...`);
+      }
+    }
     
     if (value) {
-      console.log('[Jupiter] Extracted largest value: ' + value);
       return { value, success: true, platform: 'jupiter' };
     }
     
-    return { value: null, success: false, platform: 'jupiter', error: 'No portfolio value found' };
+    return { value: null, success: false, platform: 'jupiter', error: 'No portfolio value found after multiple attempts' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Jupiter] Error:', msg);
@@ -436,40 +467,55 @@ export async function scrapeReadyStarknet(
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
     // Navigate and wait for initial load
-    await page.goto(walletLink, { waitUntil: 'domcontentloaded', timeout: 50000 }).catch(e => 
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 50000 }).catch(e => 
       console.log('[Ready] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 15 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    // Try multiple times with progressive wait to ensure content is loaded
+    let value = null;
+    const maxAttempts = 3;
     
-    // Extract ALL text and find largest value
-    const value = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      const regex = /\$[\d,]+(?:\.\d{2})?/g;
-      const matches = fullText.match(regex);
+    for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
+      console.log(`[Ready] Extraction attempt ${attempt}/${maxAttempts}`);
       
-      if (!matches || matches.length === 0) return null;
+      // Progressive wait: 8s, 12s, 18s
+      const waitTime = 5000 + (attempt * 5000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
       
-      const values = matches
-        .map(m => ({
-          str: m,
-          num: parseFloat(m.replace(/[$,]/g, ''))
-        }))
-        .filter(v => v.num >= 10); // Ignore < $10
+      // Extract ALL text and find largest value
+      value = await page.evaluate(() => {
+        const fullText = document.body.innerText;
+        const regex = /\$[\d,]+(?:\.\d{2})?/g;
+        const matches = fullText.match(regex);
+        
+        if (!matches || matches.length === 0) return null;
+        
+        const values = matches
+          .map(m => ({
+            str: m,
+            num: parseFloat(m.replace(/[$,]/g, ''))
+          }))
+          .filter(v => v.num >= 10); // Ignore < $10
+        
+        if (values.length === 0) return null;
+        
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
+      });
       
-      if (values.length === 0) return null;
-      
-      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
-      return maxValue.str;
-    });
+      if (value) {
+        console.log(`[Ready] Extracted largest value on attempt ${attempt}: ${value}`);
+        break;
+      } else if (attempt < maxAttempts) {
+        console.log(`[Ready] No value found on attempt ${attempt}, retrying...`);
+      }
+    }
     
     if (value) {
-      console.log('[Ready] Extracted largest value: ' + value);
       return { value, success: true, platform: 'ready' };
     }
     
-    return { value: null, success: false, platform: 'ready', error: 'No portfolio value found' };
+    return { value: null, success: false, platform: 'ready', error: 'No portfolio value found after multiple attempts' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Ready] Error:', msg);
@@ -500,68 +546,83 @@ export async function scrapeAptoscanAptos(
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
     // Navigate and wait for initial load
-    await page.goto(walletLink, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(e => 
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 45000 }).catch(e => 
       console.log('[Aptoscan] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 15 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    // Try multiple times with progressive wait to ensure content is loaded
+    let value = null;
+    const maxAttempts = 3;
     
-    // Extract value below "COIN VALUE"
-    const value = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
+      console.log(`[Aptoscan] Extraction attempt ${attempt}/${maxAttempts}`);
       
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.toUpperCase().includes('COIN VALUE')) {
-          console.log('[Aptoscan] Found COIN VALUE at line ' + i + ': ' + line);
-          
-          // Look at the next few lines for a dollar value
-          for (let j = 1; j <= 5 && i + j < lines.length; j++) {
-            const nextLine = lines[i + j];
-            console.log('[Aptoscan] Checking line ' + (i + j) + ': ' + nextLine);
+      // Progressive wait: 8s, 12s, 18s
+      const waitTime = 5000 + (attempt * 5000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Extract value below "COIN VALUE"
+      value = await page.evaluate(() => {
+        const fullText = document.body.innerText;
+        const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.toUpperCase().includes('COIN VALUE')) {
+            console.log('[Aptoscan] Found COIN VALUE at line ' + i + ': ' + line);
             
-            // Look for dollar value in this line
-            const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
-            if (dollarMatch) {
-              const extractedValue = dollarMatch[0];
-              const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
-              if (numValue > 0) {
-                console.log('[Aptoscan] Found value below COIN VALUE: ' + extractedValue);
-                return extractedValue;
+            // Look at the next few lines for a dollar value
+            for (let j = 1; j <= 5 && i + j < lines.length; j++) {
+              const nextLine = lines[i + j];
+              console.log('[Aptoscan] Checking line ' + (i + j) + ': ' + nextLine);
+              
+              // Look for dollar value in this line
+              const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
+              if (dollarMatch) {
+                const extractedValue = dollarMatch[0];
+                const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
+                if (numValue > 0) {
+                  console.log('[Aptoscan] Found value below COIN VALUE: ' + extractedValue);
+                  return extractedValue;
+                }
               }
             }
           }
         }
+        
+        // Fallback: Extract ALL text and find largest value
+        console.log('[Aptoscan] COIN VALUE not found, falling back to largest value strategy');
+        const regex = /\$[\d,]+(?:\.\d{2})?/g;
+        const matches = fullText.match(regex);
+        
+        if (!matches || matches.length === 0) return null;
+        
+        const values = matches
+          .map(m => ({
+            str: m,
+            num: parseFloat(m.replace(/[$,]/g, ''))
+          }))
+          .filter(v => v.num >= 10); // Ignore < $10
+        
+        if (values.length === 0) return null;
+        
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
+      });
+      
+      if (value) {
+        console.log(`[Aptoscan] Extracted value on attempt ${attempt}: ${value}`);
+        break;
+      } else if (attempt < maxAttempts) {
+        console.log(`[Aptoscan] No value found on attempt ${attempt}, retrying...`);
       }
-      
-      // Fallback: Extract ALL text and find largest value
-      console.log('[Aptoscan] COIN VALUE not found, falling back to largest value strategy');
-      const regex = /\$[\d,]+(?:\.\d{2})?/g;
-      const matches = fullText.match(regex);
-      
-      if (!matches || matches.length === 0) return null;
-      
-      const values = matches
-        .map(m => ({
-          str: m,
-          num: parseFloat(m.replace(/[$,]/g, ''))
-        }))
-        .filter(v => v.num >= 10); // Ignore < $10
-      
-      if (values.length === 0) return null;
-      
-      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
-      return maxValue.str;
-    });
+    }
     
     if (value) {
-      console.log('[Aptoscan] Extracted value: ' + value);
       return { value, success: true, platform: 'aptoscan' };
     }
     
-    return { value: null, success: false, platform: 'aptoscan', error: 'No portfolio value found' };
+    return { value: null, success: false, platform: 'aptoscan', error: 'No portfolio value found after multiple attempts' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Aptoscan] Error:', msg);
@@ -592,68 +653,83 @@ export async function scrapeSeiscanSei(
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
     // Navigate and wait for initial load
-    await page.goto(walletLink, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(e => 
+    await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 45000 }).catch(e => 
       console.log('[Seiscan] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 15 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    // Try multiple times with progressive wait to ensure content is loaded
+    let value = null;
+    const maxAttempts = 3;
     
-    // Extract value below "SEI VALUE"
-    const value = await page.evaluate(() => {
-      const fullText = document.body.innerText;
-      const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
+      console.log(`[Seiscan] Extraction attempt ${attempt}/${maxAttempts}`);
       
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.toUpperCase().includes('SEI VALUE')) {
-          console.log('[Seiscan] Found SEI VALUE at line ' + i + ': ' + line);
-          
-          // Look at the next few lines for a dollar value
-          for (let j = 1; j <= 5 && i + j < lines.length; j++) {
-            const nextLine = lines[i + j];
-            console.log('[Seiscan] Checking line ' + (i + j) + ': ' + nextLine);
+      // Progressive wait: 8s, 12s, 18s
+      const waitTime = 5000 + (attempt * 5000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Extract value below "SEI VALUE"
+      value = await page.evaluate(() => {
+        const fullText = document.body.innerText;
+        const lines = fullText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.toUpperCase().includes('SEI VALUE')) {
+            console.log('[Seiscan] Found SEI VALUE at line ' + i + ': ' + line);
             
-            // Look for dollar value in this line
-            const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
-            if (dollarMatch) {
-              const extractedValue = dollarMatch[0];
-              const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
-              if (numValue > 0) {
-                console.log('[Seiscan] Found value below SEI VALUE: ' + extractedValue);
-                return extractedValue;
+            // Look at the next few lines for a dollar value
+            for (let j = 1; j <= 5 && i + j < lines.length; j++) {
+              const nextLine = lines[i + j];
+              console.log('[Seiscan] Checking line ' + (i + j) + ': ' + nextLine);
+              
+              // Look for dollar value in this line
+              const dollarMatch = nextLine.match(/\$[\d,]+(?:\.\d{2})?/);
+              if (dollarMatch) {
+                const extractedValue = dollarMatch[0];
+                const numValue = parseFloat(extractedValue.replace(/[$,]/g, ''));
+                if (numValue > 0) {
+                  console.log('[Seiscan] Found value below SEI VALUE: ' + extractedValue);
+                  return extractedValue;
+                }
               }
             }
           }
         }
+        
+        // Fallback: Extract ALL text and find largest value
+        console.log('[Seiscan] SEI VALUE not found, falling back to largest value strategy');
+        const regex = /\$[\d,]+(?:\.\d{2})?/g;
+        const matches = fullText.match(regex);
+        
+        if (!matches || matches.length === 0) return null;
+        
+        const values = matches
+          .map(m => ({
+            str: m,
+            num: parseFloat(m.replace(/[$,]/g, ''))
+          }))
+          .filter(v => v.num >= 10); // Ignore < $10
+        
+        if (values.length === 0) return null;
+        
+        const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
+        return maxValue.str;
+      });
+      
+      if (value) {
+        console.log(`[Seiscan] Extracted value on attempt ${attempt}: ${value}`);
+        break;
+      } else if (attempt < maxAttempts) {
+        console.log(`[Seiscan] No value found on attempt ${attempt}, retrying...`);
       }
-      
-      // Fallback: Extract ALL text and find largest value
-      console.log('[Seiscan] SEI VALUE not found, falling back to largest value strategy');
-      const regex = /\$[\d,]+(?:\.\d{2})?/g;
-      const matches = fullText.match(regex);
-      
-      if (!matches || matches.length === 0) return null;
-      
-      const values = matches
-        .map(m => ({
-          str: m,
-          num: parseFloat(m.replace(/[$,]/g, ''))
-        }))
-        .filter(v => v.num >= 10); // Ignore < $10
-      
-      if (values.length === 0) return null;
-      
-      const maxValue = values.reduce((a, b) => a.num > b.num ? a : b);
-      return maxValue.str;
-    });
+    }
     
     if (value) {
-      console.log('[Seiscan] Extracted value: ' + value);
       return { value, success: true, platform: 'seiscan' };
     }
     
-    return { value: null, success: false, platform: 'seiscan', error: 'No portfolio value found' };
+    return { value: null, success: false, platform: 'seiscan', error: 'No portfolio value found after multiple attempts' };
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Seiscan] Error:', msg);

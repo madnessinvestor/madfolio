@@ -281,7 +281,8 @@ async function scrapeWalletWithTimeout(
           
           if (fallbackValue) {
             console.log(`[Main] Scrape failed${isBrowserUnavailable ? ' (browser unavailable)' : ''}, using fallback: ${fallbackValue}`);
-            // ✅ Fallback já está no histórico, não salvar novamente
+            // ✅ Fallback já está no histórico, NÃO salvar novamente para não marcar como indisponível
+            // Apenas retornar o valor em cache sem persistir falha temporária
             
             resolve({
               id: wallet.id,
@@ -291,20 +292,21 @@ async function scrapeWalletWithTimeout(
               lastUpdated: cached?.lastUpdated || new Date(),
               status: 'temporary_error',
               lastKnownValue: fallbackValue,
-              error: result.error || 'Scrape failed'
+              error: result.error || 'Scrape failed - using last known value'
             });
           } else {
-            console.log(`[Main] Scrape failed, no cache: ${result.error}`);
-            addCacheEntry(wallet.name, 'Indisponível', result.platform, 'unavailable');
+            // ⚠️ SÓ marca como indisponível se REALMENTE não tem nenhum valor histórico
+            // e MESMO ASSIM, não salva no cache para não persistir o estado inválido
+            console.log(`[Main] Scrape failed with no historical data available: ${result.error}`);
             
             resolve({
               id: wallet.id,
               name: wallet.name,
               link: wallet.link,
-              balance: 'Indisponível',
+              balance: 'Carregando...',  // Melhor que "Indisponível" - indica que vai tentar novamente
               lastUpdated: new Date(),
-              status: 'unavailable',
-              error: result.error || 'Impossível conectar'
+              status: 'temporary_error',  // Mudado de 'unavailable' para 'temporary_error'
+              error: result.error || 'Aguardando primeira extração bem-sucedida'
             });
           }
         }
@@ -314,12 +316,13 @@ async function scrapeWalletWithTimeout(
         if (timeoutHandle) clearTimeout(timeoutHandle);
         
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[Main] Unhandled error: ${msg}`);
+        console.error(`[Main] Unhandled error for ${wallet.name}: ${msg}`);
         
         const cached = balanceCache.get(wallet.name);
         let fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
         
         if (fallbackValue) {
+          console.log(`[Main] Using fallback after error: ${fallbackValue}`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -331,13 +334,15 @@ async function scrapeWalletWithTimeout(
             error: msg
           });
         } else {
+          // Não marca como indisponível - apenas como erro temporário
+          console.log(`[Main] Error with no historical data - will retry next cycle`);
           resolve({
             id: wallet.id,
             name: wallet.name,
             link: wallet.link,
-            balance: 'Indisponível',
+            balance: 'Carregando...',
             lastUpdated: new Date(),
-            status: 'unavailable',
+            status: 'temporary_error',
             error: msg
           });
         }
@@ -349,16 +354,35 @@ async function scrapeWalletWithTimeout(
       if (!completed) {
         completed = true;
         if (timeoutHandle) clearTimeout(timeoutHandle);
-        console.error(`[Main] ExecuteScrap error: ${err}`);
-        resolve({
-          id: wallet.id,
-          name: wallet.name,
-          link: wallet.link,
-          balance: 'Indisponível',
-          lastUpdated: new Date(),
-          status: 'unavailable',
-          error: 'Execution failed'
-        });
+        console.error(`[Main] ExecuteScrap error for ${wallet.name}: ${err}`);
+        
+        // Tentar fallback mesmo em caso de erro crítico
+        const cached = balanceCache.get(wallet.name);
+        const fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        
+        if (fallbackValue) {
+          console.log(`[Main] Using fallback after execution error: ${fallbackValue}`);
+          resolve({
+            id: wallet.id,
+            name: wallet.name,
+            link: wallet.link,
+            balance: fallbackValue,
+            lastUpdated: cached?.lastUpdated || new Date(),
+            status: 'temporary_error',
+            lastKnownValue: fallbackValue,
+            error: 'Execution error - using last known value'
+          });
+        } else {
+          resolve({
+            id: wallet.id,
+            name: wallet.name,
+            link: wallet.link,
+            balance: 'Carregando...',
+            lastUpdated: new Date(),
+            status: 'temporary_error',
+            error: 'Execution failed - will retry next cycle'
+          });
+        }
       }
     });
     
@@ -373,6 +397,7 @@ async function scrapeWalletWithTimeout(
         
         if (fallbackValue) {
           // ✅ Fallback já está no histórico, não salvar novamente
+          console.log(`[Main] Using fallback after timeout: ${fallbackValue}`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -384,15 +409,16 @@ async function scrapeWalletWithTimeout(
             error: 'Timeout - using cached value'
           });
         } else {
-          // ❌ NÃO salvar "Indisponível" no histórico
+          // ⚠️ NÃO marcar como indisponível - apenas como carregando para tentar novamente
+          console.log(`[Main] Timeout with no historical data - will retry next cycle`);
           resolve({
             id: wallet.id,
             name: wallet.name,
             link: wallet.link,
-            balance: 'Indisponível',
+            balance: 'Carregando...',
             lastUpdated: new Date(),
-            status: 'unavailable',
-            error: 'Timeout - no cache available'
+            status: 'temporary_error',
+            error: 'Timeout - will retry on next sync'
           });
         }
       }
