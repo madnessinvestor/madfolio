@@ -571,6 +571,36 @@ export async function registerRoutes(
     const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
       const validated = insertSnapshotSchema.parse(req.body);
+      
+      // Check if the month is locked before updating
+      // Extract month and year from the snapshot date
+      const snapshotDate = new Date(validated.date);
+      const snapshotMonth = snapshotDate.getMonth() + 1; // 1-12
+      const snapshotYear = snapshotDate.getFullYear();
+      
+      // Get snapshots from that month to check if any are locked
+      const startDate = `${snapshotYear}-${snapshotMonth.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(snapshotYear, snapshotMonth, 0).toISOString().split('T')[0];
+      const monthSnapshots = await storage.getSnapshotsByDateRange(startDate, endDate);
+      
+      // Check if any snapshot in this month is locked
+      const isMonthLocked = monthSnapshots.some(s => s.isLocked === 1 || s.isLocked === true);
+      
+      if (isMonthLocked) {
+        // Month is locked - prevent automatic updates
+        // Return 403 Forbidden for automatic updates, but allow manual saves
+        const isManualSave = req.body._manualSave === true;
+        
+        if (!isManualSave) {
+          return res.status(403).json({ 
+            error: "Month is locked - automatic updates not allowed. Use manual edit to modify.",
+            monthLocked: true,
+            month: snapshotMonth,
+            year: snapshotYear
+          });
+        }
+      }
+      
       const snapshot = await storage.upsertSnapshot(validated);
       
       const asset = await storage.getAsset(validated.assetId);

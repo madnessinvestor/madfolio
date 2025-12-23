@@ -157,7 +157,24 @@ export default function MonthlySnapshotsPage() {
         newMonthUpdates[monthKey] = {};
         assets.forEach((asset) => {
           const monthData = yearSnapshots[asset.id]?.[month];
-          const value = monthData?.value || ((asset.quantity || 0) * (asset.currentPrice || 0)) || 0;
+          // For locked months, ONLY use saved snapshot values
+          // For unlocked months, use snapshot value if available, otherwise calculate from current price
+          const isMonthLocked = monthLockedStatus[month + 1] === true;
+          let value = 0;
+          
+          if (isMonthLocked && monthData?.value) {
+            // Locked month: use saved snapshot value (immutable)
+            value = monthData.value;
+          } else if (monthData?.value) {
+            // Unlocked month with snapshot: use snapshot as base
+            value = monthData.value;
+          } else {
+            // No snapshot: calculate from current price (only for unlocked months)
+            if (!isMonthLocked) {
+              value = ((asset.quantity || 0) * (asset.currentPrice || 0)) || 0;
+            }
+          }
+          
           newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(value);
         });
 
@@ -179,9 +196,10 @@ export default function MonthlySnapshotsPage() {
       setMonthUpdateDates(newMonthUpdateDates);
       originalDataRef.current = JSON.parse(JSON.stringify(newMonthUpdates));
     }
-  }, [assets, selectedYear, yearSnapshots]);
+  }, [assets, selectedYear, yearSnapshots, monthLockedStatus]);
 
   // Update monthUpdates when assets change and month is not locked
+  // This effect only updates UNLOCKED months with current price changes
   useEffect(() => {
     if (assets.length > 0) {
       setMonthUpdates((prev) => {
@@ -192,19 +210,25 @@ export default function MonthlySnapshotsPage() {
           const monthKey = month.toString();
           const isLocked = monthLockedStatus[month + 1] === true; // monthLockedStatus uses 1-based month
           
+          // ONLY update unlocked months
           if (!isLocked) {
             newUpdates[monthKey] = { ...newUpdates[monthKey] };
             assets.forEach((asset) => {
-              const currentValue = (asset.quantity || 0) * (asset.currentPrice || 0);
-              newUpdates[monthKey][asset.id] = formatCurrencyInput(currentValue);
+              // Only update if there's no saved snapshot for this month
+              const monthData = yearSnapshots[asset.id]?.[month];
+              if (!monthData?.value) {
+                const currentValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+                newUpdates[monthKey][asset.id] = formatCurrencyInput(currentValue);
+              }
             });
           }
+          // Locked months are NOT updated here - they keep their snapshot values
         }
         
         return newUpdates;
       });
     }
-  }, [assets, monthLockedStatus, selectedYear]);
+  }, [assets, monthLockedStatus, selectedYear, yearSnapshots]);
 
   const formatCurrencyInput = (value: number): string => {
     return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

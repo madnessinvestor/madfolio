@@ -112,8 +112,25 @@ export default function UpdateInvestmentsPage() {
         newMonthUpdates[monthKey] = {};
         assets.forEach((asset) => {
           const monthData = yearSnapshots[asset.id]?.[month];
-          const price = asset.currentPrice || asset.acquisitionPrice || 0;
-          const value = monthData?.value || ((asset.quantity || 0) * price) || 0;
+          // For locked months, ONLY use saved snapshot values (immutable)
+          // For unlocked months, use snapshot value if available, otherwise calculate from price
+          const isMonthLocked = monthLockedStatus[month + 1] === true;
+          let value = 0;
+          
+          if (isMonthLocked && monthData?.value) {
+            // Locked month: use saved snapshot value (immutable)
+            value = monthData.value;
+          } else if (monthData?.value) {
+            // Unlocked month with snapshot: use snapshot as base
+            value = monthData.value;
+          } else {
+            // No snapshot: calculate from price (only for unlocked months)
+            if (!isMonthLocked) {
+              const price = asset.currentPrice || asset.acquisitionPrice || 0;
+              value = ((asset.quantity || 0) * price) || 0;
+            }
+          }
+          
           newMonthUpdates[monthKey][asset.id] = formatCurrencyInput(value);
         });
 
@@ -135,7 +152,7 @@ export default function UpdateInvestmentsPage() {
       setMonthUpdateDates(newMonthUpdateDates);
       originalDataRef.current = JSON.parse(JSON.stringify(newMonthUpdates));
     }
-  }, [assets, selectedYear, yearSnapshots]);
+  }, [assets, selectedYear, yearSnapshots, monthLockedStatus]);
 
   const formatCurrencyInput = (value: number): string => {
     return value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
