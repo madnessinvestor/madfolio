@@ -49,7 +49,8 @@ export default function WalletTracker() {
 
   const { data: balances, isLoading, error, refetch } = useQuery<WalletBalance[]>({
     queryKey: ["/api/saldo/detailed"],
-    refetchInterval: 60000,
+    refetchInterval: false, // Desabilitado para evitar race conditions
+    staleTime: 30000, // Cache válido por 30 segundos
   });
 
   // Auto-refresh wallet balances when component mounts

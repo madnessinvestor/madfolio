@@ -133,8 +133,8 @@ export async function scrapeDebankEVM(
       console.log('[DeBank] Navigation warning: ' + e.message)
     );
     
-    // Wait for JS rendering (up to 30 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for JS rendering (up to 15 seconds for complete page load)
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     const value = await extractDebankNetWorthEVM(page);
     
@@ -202,9 +202,9 @@ async function scrapeJupiterPortfolioNetWorth(
       console.log('[JupiterPortfolio] Navigation warning: ' + e.message)
     );
     
-    // Wait for full rendering (up to 30 seconds for complete page load)
-    console.log('[JupiterPortfolio] Waiting up to 30 seconds for rendering...');
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for full rendering (up to 15 seconds for complete page load)
+    console.log('[JupiterPortfolio] Waiting up to 15 seconds for rendering...');
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     let netWorthValue: string | null = null;
     let retryCount = 0;
@@ -376,8 +376,8 @@ export async function scrapeJupiterSolana(
       console.log('[Jupiter] Navigation warning: ' + e.message)
     );
     
-    // Wait for initial rendering (up to 30 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for initial rendering (up to 15 seconds for complete page load)
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Extract ALL text and find largest value
     const value = await page.evaluate(() => {
@@ -440,8 +440,8 @@ export async function scrapeReadyStarknet(
       console.log('[Ready] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 30 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for rendering (up to 15 seconds for complete page load)
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Extract ALL text and find largest value
     const value = await page.evaluate(() => {
@@ -504,8 +504,8 @@ export async function scrapeAptoscanAptos(
       console.log('[Aptoscan] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 30 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for rendering (up to 15 seconds for complete page load)
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Extract value below "COIN VALUE"
     const value = await page.evaluate(() => {
@@ -596,8 +596,8 @@ export async function scrapeSeiscanSei(
       console.log('[Seiscan] Navigation warning: ' + e.message)
     );
     
-    // Wait for rendering (up to 30 seconds for complete page load)
-    await new Promise(resolve => setTimeout(resolve, 30000));
+    // Wait for rendering (up to 15 seconds for complete page load)
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Extract value below "SEI VALUE"
     const value = await page.evaluate(() => {
@@ -739,54 +739,71 @@ export async function selectAndScrapePlatform(
 ): Promise<ScraperResult> {
   console.log(`[Platform] Selecting scraper for: ${walletName} (${walletLink})`);
   
-  try {
-    // ==================== DEBANK (Special case - fixed)
-    if (walletLink.includes('debank.com')) {
-      if (!browser) {
-        return { value: null, success: false, platform: 'debank', error: 'Browser not available' };
+  // Wrapper com timeout de segurança para garantir que sempre resolva
+  return Promise.race([
+    (async () => {
+      try {
+        // ==================== DEBANK (Special case - fixed)
+        if (walletLink.includes('debank.com')) {
+          if (!browser) {
+            return { value: null, success: false, platform: 'debank', error: 'Browser not available' };
+          }
+          return await scrapeDebankEVM(browser, walletLink, 60000);
+        }
+        
+        // ==================== RECOGNIZED PLATFORMS (with specific timeouts)
+        // SPECIAL CASE: jup.ag/portfolio - Use Net Worth specific scraper
+        if (walletLink.includes('jup.ag/portfolio')) {
+          if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
+          console.log('[Platform] Jupiter Portfolio detected - using Net Worth specific scraper');
+          return await scrapeJupiterPortfolioNetWorth(browser, walletLink, 30000);
+        }
+        
+        // Generic Jupiter scraper for other jup.ag links
+        if (walletLink.includes('jup.ag')) {
+          if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
+          return await scrapeJupiterSolana(browser, walletLink, 45000);
+        }
+        
+        if (walletLink.includes('portfolio.ready.co')) {
+          if (!browser) return { value: null, success: false, platform: 'ready', error: 'Browser not available' };
+          return await scrapeReadyStarknet(browser, walletLink, 45000);
+        }
+        
+        if (walletLink.includes('aptoscan.com')) {
+          if (!browser) return { value: null, success: false, platform: 'aptoscan', error: 'Browser not available' };
+          return await scrapeAptoscanAptos(browser, walletLink, 30000);
+        }
+        
+        if (walletLink.includes('seiscan.io')) {
+          if (!browser) return { value: null, success: false, platform: 'seiscan', error: 'Browser not available' };
+          return await scrapeSeiscanSei(browser, walletLink, 30000);
+        }
+        
+        // ==================== FALLBACK: Generic opportunistic scraper for ANY other platform
+        console.log(`[Platform] Platform not recognized, using generic opportunistic scraper`);
+        if (!browser) {
+          return { value: null, success: false, platform: 'generic', error: 'Browser not available' };
+        }
+        return await scrapeGenericOpportunistic(browser, walletLink, 30000);
+        
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[Platform] Unhandled error:`, msg);
+        return { value: null, success: false, platform: 'generic', error: msg };
       }
-      return await scrapeDebankEVM(browser, walletLink, 60000);
-    }
-    
-    // ==================== RECOGNIZED PLATFORMS (with specific timeouts)
-    // SPECIAL CASE: jup.ag/portfolio - Use Net Worth specific scraper
-    if (walletLink.includes('jup.ag/portfolio')) {
-      if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
-      console.log('[Platform] Jupiter Portfolio detected - using Net Worth specific scraper');
-      return await scrapeJupiterPortfolioNetWorth(browser, walletLink, 30000);
-    }
-    
-    // Generic Jupiter scraper for other jup.ag links
-    if (walletLink.includes('jup.ag')) {
-      if (!browser) return { value: null, success: false, platform: 'jupiter', error: 'Browser not available' };
-      return await scrapeJupiterSolana(browser, walletLink, 45000);
-    }
-    
-    if (walletLink.includes('portfolio.ready.co')) {
-      if (!browser) return { value: null, success: false, platform: 'ready', error: 'Browser not available' };
-      return await scrapeReadyStarknet(browser, walletLink, 45000);
-    }
-    
-    if (walletLink.includes('aptoscan.com')) {
-      if (!browser) return { value: null, success: false, platform: 'aptoscan', error: 'Browser not available' };
-      return await scrapeAptoscanAptos(browser, walletLink, 30000);
-    }
-    
-    if (walletLink.includes('seiscan.io')) {
-      if (!browser) return { value: null, success: false, platform: 'seiscan', error: 'Browser not available' };
-      return await scrapeSeiscanSei(browser, walletLink, 30000);
-    }
-    
-    // ==================== FALLBACK: Generic opportunistic scraper for ANY other platform
-    console.log(`[Platform] Platform not recognized, using generic opportunistic scraper`);
-    if (!browser) {
-      return { value: null, success: false, platform: 'generic', error: 'Browser not available' };
-    }
-    return await scrapeGenericOpportunistic(browser, walletLink, 30000);
-    
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Platform] Unhandled error:`, msg);
-    return { value: null, success: false, platform: 'generic', error: msg };
-  }
+    })(),
+    // Timeout de segurança: se após 70 segundos não resolveu, força retorno
+    new Promise<ScraperResult>((resolve) => {
+      setTimeout(() => {
+        console.error(`[Platform] Safety timeout reached for ${walletName}`);
+        resolve({ 
+          value: null, 
+          success: false, 
+          platform: 'timeout', 
+          error: 'Safety timeout reached' 
+        });
+      }, 70000);
+    })
+  ]);
 }

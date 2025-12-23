@@ -179,8 +179,20 @@ async function scrapeWalletWithTimeout(
   return new Promise((resolve) => {
     const executeScrap = async () => {
       try {
-        // Call platform-specific scraper
-        const result = await selectAndScrapePlatform(browser || null, wallet.link, wallet.name);
+        // Call platform-specific scraper with explicit timeout
+        const result = await Promise.race([
+          selectAndScrapePlatform(browser || null, wallet.link, wallet.name),
+          new Promise<any>((_, reject) => 
+            setTimeout(() => reject(new Error('Platform scraper timeout')), timeoutMs - 1000)
+          )
+        ]).catch(err => ({
+          success: false,
+          value: null,
+          platform: 'unknown',
+          error: err instanceof Error ? err.message : 'Scraper failed'
+        }));
+        
+        if (completed) return; // Already resolved by timeout
         completed = true;
         
         if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -201,21 +213,27 @@ async function scrapeWalletWithTimeout(
             lastKnownValue: result.value
           });
         } else {
-          // Try fallback cache
+          // Try fallback: cache primeiro, depois histórico
           const cached = balanceCache.get(wallet.name);
+          let fallbackValue = cached?.lastKnownValue;
           
-          if (cached?.lastKnownValue) {
-            console.log(`[Main] Scrape failed, using cache: ${cached.lastKnownValue}`);
-            addCacheEntry(wallet.name, cached.lastKnownValue, result.platform, 'temporary_error');
+          // Se não tem cache, tenta buscar último maior valor do histórico
+          if (!fallbackValue) {
+            fallbackValue = getLastHighestValue(wallet.name);
+          }
+          
+          if (fallbackValue) {
+            console.log(`[Main] Scrape failed, using fallback: ${fallbackValue}`);
+            addCacheEntry(wallet.name, fallbackValue, result.platform, 'temporary_error');
             
             resolve({
               id: wallet.id,
               name: wallet.name,
               link: wallet.link,
-              balance: cached.lastKnownValue,
-              lastUpdated: cached.lastUpdated,
+              balance: fallbackValue,
+              lastUpdated: cached?.lastUpdated || new Date(),
               status: 'temporary_error',
-              lastKnownValue: cached.lastKnownValue,
+              lastKnownValue: fallbackValue,
               error: result.error || 'Scrape failed'
             });
           } else {
@@ -234,6 +252,7 @@ async function scrapeWalletWithTimeout(
           }
         }
       } catch (error) {
+        if (completed) return;
         completed = true;
         if (timeoutHandle) clearTimeout(timeoutHandle);
         
@@ -241,15 +260,17 @@ async function scrapeWalletWithTimeout(
         console.error(`[Main] Unhandled error: ${msg}`);
         
         const cached = balanceCache.get(wallet.name);
-        if (cached?.lastKnownValue) {
+        let fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        
+        if (fallbackValue) {
           resolve({
             id: wallet.id,
             name: wallet.name,
             link: wallet.link,
-            balance: cached.lastKnownValue,
-            lastUpdated: cached.lastUpdated,
+            balance: fallbackValue,
+            lastUpdated: cached?.lastUpdated || new Date(),
             status: 'temporary_error',
-            lastKnownValue: cached.lastKnownValue,
+            lastKnownValue: fallbackValue,
             error: msg
           });
         } else {
@@ -267,24 +288,41 @@ async function scrapeWalletWithTimeout(
     };
     
     // Execute with timeout
-    executeScrap();
+    executeScrap().catch(err => {
+      if (!completed) {
+        completed = true;
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        console.error(`[Main] ExecuteScrap error: ${err}`);
+        resolve({
+          id: wallet.id,
+          name: wallet.name,
+          link: wallet.link,
+          balance: 'Indisponível',
+          lastUpdated: new Date(),
+          status: 'unavailable',
+          error: 'Execution failed'
+        });
+      }
+    });
     
     timeoutHandle = setTimeout(() => {
       if (!completed) {
         completed = true;
-        console.log(`[Main] Timeout for ${wallet.name}, using fallback cache`);
+        console.log(`[Main] Timeout for ${wallet.name}, using fallback`);
         
         const cached = balanceCache.get(wallet.name);
-        if (cached?.lastKnownValue) {
-          addCacheEntry(wallet.name, cached.lastKnownValue, 'unknown', 'temporary_error');
+        let fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        
+        if (fallbackValue) {
+          addCacheEntry(wallet.name, fallbackValue, 'unknown', 'temporary_error');
           resolve({
             id: wallet.id,
             name: wallet.name,
             link: wallet.link,
-            balance: cached.lastKnownValue,
-            lastUpdated: cached.lastUpdated,
+            balance: fallbackValue,
+            lastUpdated: cached?.lastUpdated || new Date(),
             status: 'temporary_error',
-            lastKnownValue: cached.lastKnownValue,
+            lastKnownValue: fallbackValue,
             error: 'Timeout - using cached value'
           });
         } else {
@@ -293,7 +331,7 @@ async function scrapeWalletWithTimeout(
             id: wallet.id,
             name: wallet.name,
             link: wallet.link,
-            balance: 'Carregando...',
+            balance: 'Indisponível',
             lastUpdated: new Date(),
             status: 'unavailable',
             error: 'Timeout - no cache available'
@@ -394,21 +432,33 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
       
       let validValue = false;
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = 2; // Reduzido de 3 para 2
       let finalBalance: WalletBalance | null = null;
       
-      // Retry logic: if value is 0 or invalid, wait 10 seconds and try again
+      // Retry logic: if value is 0 or invalid, wait 5 seconds and try again
       while (!validValue && attempts < maxAttempts) {
         attempts++;
         console.log(`[Sequential] Attempt ${attempts}/${maxAttempts} for ${wallet.name}`);
         
         try {
-          // Always provide browser (selectAndScrapePlatform will use it or fallback gracefully)
+          // Timeouts reduzidos para melhorar performance
           const balance = await scrapeWalletWithTimeout(
             browser,
             wallet,
-            wallet.link.includes('debank.com') ? 90000 : 60000
-          );
+            wallet.link.includes('debank.com') ? 45000 : 35000
+          ).catch(err => {
+            console.error(`[Sequential] Scrape error caught: ${err}`);
+            // Retorna valor padrão em caso de erro
+            return {
+              id: wallet.id,
+              name: wallet.name,
+              link: wallet.link,
+              balance: 'Indisponível',
+              lastUpdated: new Date(),
+              status: 'unavailable' as const,
+              error: 'Scrape failed'
+            };
+          });
           
           // Validate the scraped value - must not be 0, null, undefined, or empty
           if (balance.status === 'success' && balance.balance) {
@@ -469,10 +519,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
             console.log(`[Sequential] Scrape failed or returned invalid status: ${balance.status}`);
           }
           
-          // If value is invalid and we have more attempts, wait 10 seconds
+          // If value is invalid and we have more attempts, wait 5 seconds
           if (!validValue && attempts < maxAttempts) {
-            console.log(`[Sequential] Waiting 10 seconds before retry...`);
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            console.log(`[Sequential] Waiting 5 seconds before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
           }
           
         } catch (error) {
@@ -496,35 +546,52 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
             validValue = true;
           }
           
-          // If error and we have more attempts, wait 10 seconds
+          // If error and we have more attempts, wait 5 seconds
           if (!validValue && attempts < maxAttempts) {
-            console.log(`[Sequential] Waiting 10 seconds before retry after error...`);
-            await new Promise(resolve => setTimeout(resolve, 10000));
+            console.log(`[Sequential] Waiting 5 seconds before retry after error...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
           }
         }
       }
       
-      // If still no valid value after all attempts, mark as unavailable
+      // If still no valid value after all attempts, use fallback with historical data
       if (!validValue) {
         console.log(`[Sequential] Failed to get valid value for ${wallet.name} after ${maxAttempts} attempts`);
-        finalBalance = {
-          id: wallet.id,
-          name: wallet.name,
-          link: wallet.link,
-          balance: 'Indisponível',
-          lastUpdated: new Date(),
-          status: 'unavailable',
-          error: 'Falha após múltiplas tentativas'
-        };
+        const cached = balanceCache.get(wallet.name);
+        const historicalValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        
+        if (historicalValue) {
+          console.log(`[Sequential] Using historical fallback value: ${historicalValue}`);
+          finalBalance = {
+            id: wallet.id,
+            name: wallet.name,
+            link: wallet.link,
+            balance: historicalValue,
+            lastUpdated: cached?.lastUpdated || new Date(),
+            status: 'temporary_error',
+            lastKnownValue: historicalValue,
+            error: 'Usando valor histórico'
+          };
+        } else {
+          finalBalance = {
+            id: wallet.id,
+            name: wallet.name,
+            link: wallet.link,
+            balance: 'Indisponível',
+            lastUpdated: new Date(),
+            status: 'unavailable',
+            error: 'Falha após múltiplas tentativas'
+          };
+        }
         balanceCache.set(wallet.name, finalBalance);
       }
       
       console.log(`[Sequential] Final result for ${wallet.name}: ${finalBalance?.balance} (${finalBalance?.status})`);
       
-      // 10 second delay between wallets (as per requirements)
+      // 5 second delay between wallets (reduzido de 10s)
       if (i < wallets.length - 1) {
-        console.log(`[Sequential] Waiting 10 seconds before next wallet...`);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.log(`[Sequential] Waiting 5 seconds before next wallet...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
@@ -612,20 +679,33 @@ export function startStepMonitor(intervalMs: number): void {
 export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
   console.log('[Force] Manual refresh requested');
   
+  // Marca todas as wallets como "em atualização"
   for (const wallet of WALLETS) {
     const cached = balanceCache.get(wallet.name);
+    const fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
     balanceCache.set(wallet.name, {
       id: wallet.id,
       name: wallet.name,
       link: wallet.link,
-      balance: cached?.balance || 'Carregando...',
+      balance: fallbackValue || 'Carregando...',
       lastUpdated: new Date(),
-      status: 'success',
-      lastKnownValue: cached?.lastKnownValue
+      status: fallbackValue ? 'temporary_error' : 'unavailable',
+      lastKnownValue: fallbackValue
     });
   }
   
-  await updateWalletsSequentially(WALLETS);
+  // Aguarda atualização completa com timeout de segurança
+  try {
+    await Promise.race([
+      updateWalletsSequentially(WALLETS),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Update timeout')), 300000) // 5 minutos max
+      )
+    ]);
+  } catch (error) {
+    console.error('[Force] Update timeout or error:', error);
+  }
+  
   return getDetailedBalances();
 }
 
