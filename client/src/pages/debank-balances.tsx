@@ -114,7 +114,7 @@ export default function WalletTracker() {
       queryClient.invalidateQueries({ queryKey: ["/api/saldo/detailed"] });
       toast({
         title: "Saldos atualizados",
-        description: "Os saldos foram atualizados com sucesso. Intervalos de 15 segundos entre requisições.",
+        description: "Os saldos foram atualizados com sucesso. Intervalo mínimo de 1 minuto por wallet e 20 segundos entre wallets.",
       });
     },
     onError: () => {
@@ -465,7 +465,7 @@ export default function WalletTracker() {
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
         Os saldos são obtidos via scraping de múltiplas plataformas usando Puppeteer. 
-        A atualização automática ocorre a cada 1 hora com intervalos de 5 segundos entre wallets.
+        A atualização automática ocorre a cada 1 hora com intervalo de 1 minuto por wallet e 20 segundos entre wallets diferentes.
         Histórico completo salvo no cache do backend.
       </div>
 

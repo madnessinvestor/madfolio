@@ -170,6 +170,11 @@ export function setWallets(newWallets: WalletConfig[]): void {
 const balanceCache = new Map<string, WalletBalance>();
 let refreshInterval: NodeJS.Timeout | null = null;
 
+// 🕒 Controle de frequência: rastrear última atualização de cada wallet
+const lastWalletUpdate = new Map<string, number>();
+const MIN_WALLET_UPDATE_INTERVAL = 60 * 1000; // 1 minuto entre atualizações da MESMA wallet
+const INTER_WALLET_DELAY = 20 * 1000; // 20 segundos entre wallets diferentes
+
 // Controle de concorrência: garantir que apenas 1 browser esteja ativo por vez
 let isRefreshing = false;
 let refreshQueue: Array<() => Promise<void>> = [];
@@ -502,6 +507,22 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
       const wallet = wallets[i];
       console.log(`[Sequential] Wallet ${i + 1}/${wallets.length}: ${wallet.name}`);
       
+      // 🕒 Verificar se passou tempo mínimo desde última atualização desta wallet
+      const lastUpdate = lastWalletUpdate.get(wallet.name) || 0;
+      const timeSinceLastUpdate = Date.now() - lastUpdate;
+      
+      if (timeSinceLastUpdate < MIN_WALLET_UPDATE_INTERVAL) {
+        const remainingTime = Math.ceil((MIN_WALLET_UPDATE_INTERVAL - timeSinceLastUpdate) / 1000);
+        console.log(`[Sequential] ⏸️ Skipping ${wallet.name} - updated ${Math.ceil(timeSinceLastUpdate / 1000)}s ago (min interval: 60s, remaining: ${remainingTime}s)`);
+        
+        // Usar valor do cache
+        const cached = balanceCache.get(wallet.name);
+        if (cached) {
+          console.log(`[Sequential] Using cached value for ${wallet.name}: ${cached.balance}`);
+        }
+        continue; // Pular para próxima wallet
+      }
+      
       // Se já temos muitas falhas consecutivas, abortar o ciclo
       if (consecutiveFailures >= maxConsecutiveFailures) {
         console.log(`[Sequential] ⚠️ Aborting cycle: ${consecutiveFailures} consecutive failures detected`);
@@ -588,6 +609,9 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
               validValue = true;
               consecutiveFailures = 0; // Reset contador quando tiver sucesso
               finalBalance = balance;
+              
+              // ✅ Registrar timestamp desta atualização
+              lastWalletUpdate.set(wallet.name, Date.now());
 
               // Update corresponding asset if balance was successfully retrieved
               await updateAssetForWallet(wallet.name, brlValue);
@@ -664,10 +688,10 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
       
       console.log(`[Sequential] Final result for ${wallet.name}: ${finalBalance?.balance} (${finalBalance?.status})`);
       
-      // 10 second delay between wallets (para respeitar rate limits)
+      // 🕒 20 segundos entre wallets diferentes (para respeitar rate limits e permitir carregamento completo)
       if (i < wallets.length - 1) {
-        console.log(`[Sequential] Waiting 10 seconds before next wallet...`);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        console.log(`[Sequential] Waiting 20 seconds before next wallet...`);
+        await new Promise(resolve => setTimeout(resolve, INTER_WALLET_DELAY));
       }
     }
 
