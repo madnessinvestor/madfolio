@@ -160,7 +160,7 @@ export function setWallets(newWallets: WalletConfig[]): void {
   WALLETS = newWallets;
   // Clean balanceCache to remove deleted wallets
   const newNames = new Set(newWallets.map(w => w.name));
-  for (const [name] of balanceCache) {
+  for (const [name] of Array.from(balanceCache.entries())) {
     if (!newNames.has(name)) {
       balanceCache.delete(name);
     }
@@ -169,6 +169,30 @@ export function setWallets(newWallets: WalletConfig[]): void {
 
 const balanceCache = new Map<string, WalletBalance>();
 let refreshInterval: NodeJS.Timeout | null = null;
+
+// Controle de concorrência: garantir que apenas 1 browser esteja ativo por vez
+let isRefreshing = false;
+let refreshQueue: Array<() => Promise<void>> = [];
+
+async function processRefreshQueue() {
+  if (refreshQueue.length === 0) {
+    isRefreshing = false;
+    return;
+  }
+  
+  const nextRefresh = refreshQueue.shift();
+  if (nextRefresh) {
+    try {
+      await nextRefresh();
+    } catch (error) {
+      console.error('[Queue] Error processing refresh:', error);
+    }
+    // Processar próximo da fila após 2 segundos
+    setTimeout(() => processRefreshQueue(), 2000);
+  } else {
+    isRefreshing = false;
+  }
+}
 
 async function getChromiumPath(): Promise<string> {
   try {
@@ -231,17 +255,27 @@ async function scrapeWalletWithTimeout(
             lastKnownValue: result.value
           });
         } else {
+          // Tratamento especial para "Browser not available" - usar fallback imediatamente
+          const isBrowserUnavailable = result.error?.includes('Browser not available');
+          
+          if (isBrowserUnavailable) {
+            console.log(`[Main] Browser not available for ${wallet.name}, using fallback immediately`);
+          }
+          
           // Try fallback: cache primeiro, depois histórico
           const cached = balanceCache.get(wallet.name);
           let fallbackValue = cached?.lastKnownValue;
           
           // Se não tem cache, tenta buscar último maior valor do histórico
           if (!fallbackValue) {
-            fallbackValue = getLastHighestValue(wallet.name);
+            const historicalValue = getLastHighestValue(wallet.name);
+            if (historicalValue) {
+              fallbackValue = historicalValue;
+            }
           }
           
           if (fallbackValue) {
-            console.log(`[Main] Scrape failed, using fallback: ${fallbackValue}`);
+            console.log(`[Main] Scrape failed${isBrowserUnavailable ? ' (browser unavailable)' : ''}, using fallback: ${fallbackValue}`);
             addCacheEntry(wallet.name, fallbackValue, result.platform, 'temporary_error');
             
             resolve({
@@ -329,7 +363,8 @@ async function scrapeWalletWithTimeout(
         console.log(`[Main] Timeout for ${wallet.name}, using fallback`);
         
         const cached = balanceCache.get(wallet.name);
-        let fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        const historicalValue = getLastHighestValue(wallet.name);
+        let fallbackValue = cached?.lastKnownValue || (historicalValue ? historicalValue : undefined);
         
         if (fallbackValue) {
           addCacheEntry(wallet.name, fallbackValue, 'unknown', 'temporary_error');
@@ -372,7 +407,7 @@ async function updatePortfolioEvolutionTotal(userId: string = "default-user"): P
     let totalValue = 0;
     const walletNames = new Set(WALLETS.map(w => w.name));
 
-    for (const [walletName, balance] of balanceCache) {
+    for (const [walletName, balance] of Array.from(balanceCache.entries())) {
       if (walletNames.has(walletName) && balance.status === 'success' && balance.balance) {
         const numValue = parseCurrencyValue(balance.balance);
         if (numValue > 0) {
@@ -432,24 +467,30 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
   try {
     const chromiumPath = await getChromiumPath();
     
-    browser = await puppeteerExtra.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-accelerated-jpeg-decoding',
-        '--disable-accelerated-video-decode',
-        '--no-first-run',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--disable-extensions'
-      ],
-      executablePath: chromiumPath,
-      timeout: 30000,
-    });
+    try {
+      browser = await puppeteerExtra.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-accelerated-jpeg-decoding',
+          '--disable-accelerated-video-decode',
+          '--no-first-run',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions'
+        ],
+        executablePath: chromiumPath,
+        timeout: 30000,
+      });
+    } catch (browserLaunchError) {
+      console.error('[Sequential] Browser launch failed:', browserLaunchError);
+      console.log('[Sequential] Browser not available - will use fallback values for all wallets');
+      browser = null; // Garante que browser seja null se falhar
+    }
 
     console.log(`[Sequential] Processing ${wallets.length} wallets sequentially`);
     
@@ -636,8 +677,16 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
   } catch (error) {
     console.error(`[Sequential] Error:`, error);
   } finally {
+    // Garantir fechamento do browser em qualquer situação
     if (browser) {
-      await browser.close().catch(() => {});
+      try {
+        await browser.close().catch(err => {
+          console.log('[Sequential] Browser close warning:', err?.message || 'unknown');
+        });
+        console.log('[Sequential] Browser closed successfully');
+      } catch (e) {
+        console.log('[Sequential] Browser was already closed or unavailable');
+      }
     }
   }
 }
@@ -739,7 +788,8 @@ export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
   // Marca todas as wallets como "em atualização"
   for (const wallet of WALLETS) {
     const cached = balanceCache.get(wallet.name);
-    const fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+    const historicalValue = getLastHighestValue(wallet.name);
+    const fallbackValue = cached?.lastKnownValue || (historicalValue ? historicalValue : undefined);
     balanceCache.set(wallet.name, {
       id: wallet.id,
       name: wallet.name,
@@ -831,16 +881,48 @@ export async function forceRefreshWallet(walletName: string): Promise<WalletBala
     return balance;
   } catch (error) {
     console.error(`[Force] Error:`, error);
+    
+    // Em caso de erro, tentar usar valor do cache
+    const cached = balanceCache.get(walletName);
+    if (cached?.lastKnownValue) {
+      console.log(`[Force] Using cached value after error: ${cached.lastKnownValue}`);
+      return cached;
+    }
     return null;
   } finally {
+    // Garantir fechamento do browser em qualquer situação
     if (browser) {
-      await browser.close().catch(() => {});
+      try {
+        await browser.close().catch(err => {
+          console.log('[Force] Browser close warning:', err?.message || 'unknown');
+        });
+        console.log('[Force] Browser closed successfully');
+      } catch (e) {
+        console.log('[Force] Browser was already closed or unavailable');
+      }
     }
   }
 }
 
 export async function forceRefresh(): Promise<WalletBalance[]> {
-  console.log('[Force] Refresh started (no wait)');
-  updateWalletsSequentially(WALLETS);
+  console.log('[Force] Refresh started');
+  
+  // Se já está processando, adiciona à fila
+  if (isRefreshing) {
+    console.log('[Force] Browser busy, queuing refresh request');
+    return new Promise((resolve) => {
+      refreshQueue.push(async () => {
+        await updateWalletsSequentially(WALLETS);
+        resolve(await getDetailedBalances());
+      });
+    });
+  }
+  
+  // Marca como em processamento e inicia
+  isRefreshing = true;
+  updateWalletsSequentially(WALLETS).finally(() => {
+    setTimeout(() => processRefreshQueue(), 2000);
+  });
+  
   return await getDetailedBalances();
 }
