@@ -290,9 +290,9 @@ async function processRefreshQueue() {
 async function scrapeWalletWithTimeout(
   browser: Browser | null,
   wallet: WalletConfig,
-  timeoutMs: number = 65000
+  timeoutMs: number = 120000
 ): Promise<WalletBalance> {
-  console.log(`[Main] Starting scrape for ${wallet.name} with ${timeoutMs}ms timeout`);
+  console.log(`[Wallet] 🎯 Scraping ${wallet.name} (timeout: ${timeoutMs}ms)`);
   
   let timeoutHandle: NodeJS.Timeout | null = null;
   let completed = false;
@@ -319,7 +319,7 @@ async function scrapeWalletWithTimeout(
         if (timeoutHandle) clearTimeout(timeoutHandle);
         
         if (result.success && result.value) {
-          console.log(`[Main] Success: ${wallet.name} = ${result.value}`);
+          console.log(`[Wallet] ✅ Sucesso: ${wallet.name} = ${result.value}`);
           
           // Save to cache
           addCacheEntry(wallet.name, result.value, result.platform, 'success');
@@ -338,13 +338,13 @@ async function scrapeWalletWithTimeout(
           const isBrowserUnavailable = result.error?.includes('Browser not available');
           
           if (isBrowserUnavailable) {
-            console.log(`[Main] Browser not available for ${wallet.name}`);
+            console.log(`[Wallet] ⚠️ Browser indisponível para ${wallet.name}`);
           } else {
-            console.log(`[Main] Scrape failed for ${wallet.name}: ${result.error}`);
+            console.log(`[Wallet] ⚠️ Falha no scraping: ${wallet.name} - ${result.error}`);
           }
           
           // ✅ SEMPRE consultar histórico do banco PRIMEIRO
-          console.log(`[Main] Fetching last saved balance from database for ${wallet.name}`);
+          console.log(`[Wallet] 💾 Consultando histórico no banco para ${wallet.name}`);
           const lastValidEntry = getLastValidBalance(wallet.name);
           let fallbackValue = lastValidEntry?.balance;
           let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
@@ -357,7 +357,7 @@ async function scrapeWalletWithTimeout(
           }
           
           if (fallbackValue) {
-            console.log(`[Main] ✅ Using cached balance: ${fallbackValue}`);
+            console.log(`[Wallet] 💾 Usando valor em cache: ${fallbackValue}`);
             
             // ✅ CORREÇÃO: Status DEVE ser 'success' quando há histórico válido
             // Falha de browser não é erro funcional quando há dados salvos
@@ -373,7 +373,7 @@ async function scrapeWalletWithTimeout(
             });
           } else {
             // ⚠️ APENAS AQUI: NENHUM registro no banco - primeira coleta
-            console.log(`[Main] ⚠️ No historical data in database for ${wallet.name} - awaiting first collection`);
+            console.log(`[Wallet] ❌ Sem histórico para ${wallet.name} - aguardando primeira coleta`);
             
             resolve({
               id: wallet.id,
@@ -392,9 +392,9 @@ async function scrapeWalletWithTimeout(
         if (timeoutHandle) clearTimeout(timeoutHandle);
         
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[Main] Unhandled error for ${wallet.name}: ${msg}`);
+        console.error(`[Wallet] ❌ Erro fatal em ${wallet.name}: ${msg}`);
         
-        console.log(`[Main] Fetching last saved balance from database for ${wallet.name}`);
+        console.log(`[Wallet] 💾 Tentando recuperar do banco após erro...`);
         const lastValidEntry = getLastValidBalance(wallet.name);
         let fallbackValue = lastValidEntry?.balance;
         let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
@@ -406,7 +406,7 @@ async function scrapeWalletWithTimeout(
         }
         
         if (fallbackValue) {
-          console.log(`[Main] ✅ Using cached balance: ${fallbackValue}`);
+          console.log(`[Wallet] ✅ Recuperado do cache após erro: ${fallbackValue}`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -418,7 +418,7 @@ async function scrapeWalletWithTimeout(
             error: undefined
           });
         } else {
-          console.log(`[Main] ⚠️ No historical data in database - awaiting first collection`);
+          console.log(`[Wallet] ❌ Sem cache - primeira coleta necessária`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -437,9 +437,9 @@ async function scrapeWalletWithTimeout(
       if (!completed) {
         completed = true;
         if (timeoutHandle) clearTimeout(timeoutHandle);
-        console.error(`[Main] ExecuteScrap error for ${wallet.name}: ${err}`);
+        console.error(`[Wallet] ⚠️ ExecuteScrap error for ${wallet.name}: ${err}`);
         
-        console.log(`[Main] Fetching last saved balance from database for ${wallet.name}`);
+        console.log(`[Wallet] 💾 Consultando banco após erro no execute...`);
         const lastValidEntry = getLastValidBalance(wallet.name);
         let fallbackValue = lastValidEntry?.balance;
         let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
@@ -451,7 +451,7 @@ async function scrapeWalletWithTimeout(
         }
         
         if (fallbackValue) {
-          console.log(`[Main] ✅ Using cached balance: ${fallbackValue}`);
+          console.log(`[Wallet] ✅ Usando cache: ${fallbackValue}`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -463,7 +463,7 @@ async function scrapeWalletWithTimeout(
             error: undefined
           });
         } else {
-          console.log(`[Main] ⚠️ No historical data in database - awaiting first collection`);
+          console.log(`[Wallet] ❌ Sem histórico - aguardando primeira coleta`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -480,8 +480,8 @@ async function scrapeWalletWithTimeout(
     timeoutHandle = setTimeout(() => {
       if (!completed) {
         completed = true;
-        console.log(`[Main] Timeout for ${wallet.name}`);
-        console.log(`[Main] Fetching last saved balance from database for ${wallet.name}`);
+        console.log(`[Wallet] ⏱️ Timeout atingido para ${wallet.name}`);
+        console.log(`[Wallet] 💾 Consultando banco após timeout...`);
         
         const lastValidEntry = getLastValidBalance(wallet.name);
         let fallbackValue = lastValidEntry?.balance;
@@ -494,7 +494,7 @@ async function scrapeWalletWithTimeout(
         }
         
         if (fallbackValue) {
-          console.log(`[Main] ✅ Using cached balance: ${fallbackValue}`);
+          console.log(`[Wallet] ✅ Timeout - usando cache: ${fallbackValue}`);
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -506,7 +506,7 @@ async function scrapeWalletWithTimeout(
             error: undefined
           });
         } else {
-          console.log(`[Main] ⚠️ No historical data in database - awaiting first collection`);
+          console.log(`[Wallet] ❌ Timeout - sem histórico disponível`);
           resolve({
             id: wallet.id,
             name: wallet.name,

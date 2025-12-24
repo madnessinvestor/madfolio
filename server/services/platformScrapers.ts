@@ -94,24 +94,27 @@ async function extractDebankNetWorthEVM(page: Page): Promise<string | null> {
 export async function scrapeDebankEVM(
   browser: Browser,
   walletLink: string,
-  timeoutMs: number = 60000
+  timeoutMs: number = 120000
 ): Promise<ScraperResult> {
+  console.log('[DeBank] 🚀 Iniciando scrape:', walletLink);
+  
+  if (!browser) {
+    return { value: null, success: false, platform: 'debank', error: 'Browser não disponível' };
+  }
+  
   const page = await browser.newPage();
-  const timeoutId = setTimeout(() => {
-    page.close().catch(() => {});
-  }, timeoutMs);
   
   try {
     console.log('[DeBank] Starting EVM scraper');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    // Try API first
+    // Try API first (mais rápido)
     const addressMatch = walletLink.match(/0x[a-fA-F0-9]{40}/);
     if (addressMatch) {
       const address = addressMatch[0];
       try {
-        console.log('[DeBank] Trying API endpoint');
+        console.log('[DeBank] 🔗 Tentando API primeiro');
         const apiResponse = await fetch(`https://api.debank.com/v1/user/total_balance?id=${address}`, {
           headers: { "Accept": "application/json" }
         });
@@ -120,52 +123,62 @@ export async function scrapeDebankEVM(
           const data = await apiResponse.json() as any;
           const balanceUSD = data.total_usd_value || 0;
           const formatted = `$${balanceUSD.toFixed(2)}`;
-          console.log('[DeBank] API success: ' + formatted);
+          console.log('[DeBank] ✅ API success:', formatted);
+          await page.close();
           return { value: formatted, success: true, platform: 'debank' };
         }
       } catch (apiError) {
-        console.log('[DeBank] API failed, trying DOM scraping');
+        console.log('[DeBank] ⚠️ API falhou, tentando DOM scraping');
       }
     }
     
     // DOM scraping fallback
+    console.log('[DeBank] 🌐 Navegando para página principal...');
     await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 50000 }).catch(e => 
       console.log('[DeBank] Navigation warning: ' + e.message)
     );
+    
+    // Wait for JavaScript to render (15 seconds)
+    console.log('[DeBank] ⏳ Aguardando 15s para renderização...');
+    await page.waitForTimeout(15000);
     
     // Try multiple times with increasing wait times to ensure content is loaded
     let value = null;
     const maxAttempts = 3;
     
     for (let attempt = 1; attempt <= maxAttempts && !value; attempt++) {
-      console.log(`[DeBank] Extraction attempt ${attempt}/${maxAttempts}`);
+      console.log(`[DeBank] 🔍 Tentativa de extração ${attempt}/${maxAttempts}`);
       
-      // Progressive wait: 8s, 12s, 18s
-      const waitTime = 5000 + (attempt * 5000);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      // Progressive wait: apenas retry se falhar
+      if (attempt > 1) {
+        const waitTime = 5000 + (attempt * 5000);
+        await page.waitForTimeout(waitTime);
+      }
       
       value = await extractDebankNetWorthEVM(page);
       
       if (value) {
-        console.log(`[DeBank] Successfully extracted value on attempt ${attempt}: ${value}`);
+        console.log(`[DeBank] ✅ Sucesso na tentativa ${attempt}: ${value}`);
         break;
       } else if (attempt < maxAttempts) {
-        console.log(`[DeBank] No value found on attempt ${attempt}, retrying...`);
+        console.log(`[DeBank] ❌ Tentativa ${attempt} falhou, retrying...`);
       }
     }
     
+    await page.close();
+    
     if (value) {
+      console.log('[DeBank] ✅ Extração completa:', value);
       return { value, success: true, platform: 'debank' };
     }
     
-    return { value: null, success: false, platform: 'debank', error: 'Net Worth not found in DOM after multiple attempts' };
+    console.log('[DeBank] ❌ Valor não encontrado após', maxAttempts, 'tentativas');
+    return { value: null, success: false, platform: 'debank', error: 'Valor não encontrado no DOM' };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[DeBank] Error:', msg);
-    return { value: null, success: false, platform: 'debank', error: msg };
-  } finally {
-    clearTimeout(timeoutId);
     await page.close().catch(() => {});
+    const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[DeBank] ❌ Erro fatal:', msg);
+    return { value: null, success: false, platform: 'debank', error: msg };
   }
 }
 
@@ -824,7 +837,7 @@ export async function selectAndScrapePlatform(
           if (!browser) {
             return { value: null, success: false, platform: 'debank', error: 'Browser not available' };
           }
-          return await scrapeDebankEVM(browser, walletLink, 60000);
+          return await scrapeDebankEVM(browser, walletLink, 120000);
         }
         
         // ==================== RECOGNIZED PLATFORMS (with specific timeouts)
