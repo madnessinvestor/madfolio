@@ -954,27 +954,61 @@ export async function getDetailedBalances(): Promise<WalletBalance[]> {
 
 export async function initializeWallet(wallet: WalletConfig): Promise<void> {
   if (!balanceCache.has(wallet.name)) {
-    // Try to get initial value from existing asset
-    let initialValue: string | null = null;
+    // Fixed initial values for specific wallets (seed data)
+    // These values are used ONLY if no history exists for the wallet
+    const INITIAL_WALLET_VALUES: Record<string, string> = {
+      // EVM wallets
+      'https://debank.com/profile/0x083c828b221b126965a146658d4e512337182df1': '296054.16',
+      'https://debank.com/profile/0xb5a4bccc07c1f25f43c0215627853e39b6bd3ac7': '57810.96',
+      'https://debank.com/profile/0x0b2812ecda6ed953ff85db3c594efe42dfbdb84a': '88.32',
+      // STARKNET wallet
+      'https://portfolio.ready.co/overview/0x00debe613076fc8e271e717c5828c7aec498a64dd589e8b97746e2d659458d68': '894.68',
+      // APTOS wallet
+      'https://aptoscan.com/account/0xfddb8e3f927ce776bc82145b2df5c9f7d2f7d1fcd66e032a6b1e853231f7d9a6': '83.08',
+      // SEI wallet
+      'https://seiscan.io/address/0x712e1b166769b12b95eea57571e3d6fe14f73d9d': '196.18'
+    };
     
-    try {
-      const assets = await storage.getAssets();
-      const matchingAsset = assets.find(asset =>
-        (asset.market === 'crypto' || asset.market === 'crypto_simplified') &&
-        asset.name.toLowerCase() === wallet.name.toLowerCase()
-      );
-      
-      if (matchingAsset && matchingAsset.currentPrice && matchingAsset.currentPrice > 0) {
-        initialValue = matchingAsset.currentPrice.toString();
-        console.log(`[Init] Found existing asset value for ${wallet.name}: R$ ${initialValue}`);
+    // Try to get initial value from existing asset or predefined seed values
+    let initialValue: string | null = null;
+    let source: string = 'unknown';
+    
+    // Check if this wallet has a predefined seed value
+    const seedValue = INITIAL_WALLET_VALUES[wallet.link];
+    if (seedValue) {
+      // Verify no history exists before using seed value
+      const existingHistory = getLastValidBalance(wallet.name);
+      if (!existingHistory) {
+        initialValue = seedValue;
+        source = 'seed';
+        console.log(`[Init] Using predefined seed value for ${wallet.name}: R$ ${initialValue}`);
+      } else {
+        console.log(`[Init] Wallet ${wallet.name} already has history, skipping seed value`);
       }
-    } catch (error) {
-      console.log(`[Init] Could not fetch asset for ${wallet.name}:`, error);
+    }
+    
+    // If no seed value, try to get from existing asset
+    if (!initialValue) {
+      try {
+        const assets = await storage.getAssets();
+        const matchingAsset = assets.find(asset =>
+          (asset.market === 'crypto' || asset.market === 'crypto_simplified') &&
+          asset.name.toLowerCase() === wallet.name.toLowerCase()
+        );
+        
+        if (matchingAsset && matchingAsset.currentPrice && matchingAsset.currentPrice > 0) {
+          initialValue = matchingAsset.currentPrice.toString();
+          source = 'asset';
+          console.log(`[Init] Found existing asset value for ${wallet.name}: R$ ${initialValue}`);
+        }
+      } catch (error) {
+        console.log(`[Init] Could not fetch asset for ${wallet.name}:`, error);
+      }
     }
     
     // If we have an initial value, create history entry immediately
     if (initialValue) {
-      createInitialHistoryEntry(wallet.name, initialValue, 'asset');
+      createInitialHistoryEntry(wallet.name, initialValue, source);
       
       balanceCache.set(wallet.name, {
         id: wallet.id,
@@ -985,7 +1019,7 @@ export async function initializeWallet(wallet: WalletConfig): Promise<void> {
         status: 'success',
         lastKnownValue: initialValue
       });
-      console.log(`[Init] ✓ Initialized wallet ${wallet.name} with asset value: R$ ${initialValue}`);
+      console.log(`[Init] ✓ Initialized wallet ${wallet.name} with ${source} value: R$ ${initialValue}`);
     } else {
       // No initial value - wallet will stay in "Aguardando" until first successful scrape
       balanceCache.set(wallet.name, {
