@@ -901,6 +901,17 @@ export function getBalances(): string[] {
 export async function getDetailedBalances(): Promise<WalletBalance[]> {
   const walletNames = new Set(WALLETS.map(w => w.name));
   
+  // Fixed initial values for specific wallets (seed data for display)
+  // These values are used when NO history exists and wallet is in the list
+  const INITIAL_WALLET_VALUES: Record<string, string> = {
+    'EVM-madnessmain': '296054.16',
+    'EVM-madnesstrezor': '57810.96',
+    'EVM-madnesstwo': '88.32',
+    'STARKNET-madness': '894.68',
+    'APTOS-madness': '83.08',
+    'SEI-madness': '196.18'
+  };
+  
   // 🎯 REGRA PRINCIPAL: Backend é fonte única de verdade
   // Se scraping falhou, SEMPRE usar último saldo válido do histórico
   const balances = Array.from(balanceCache.values()).filter(balance => walletNames.has(balance.name)).map(async wallet => {
@@ -935,7 +946,35 @@ export async function getDetailedBalances(): Promise<WalletBalance[]> {
         };
       }
       
-      // 3. ⚠️ APENAS AQUI pode retornar "Aguardando" - quando NUNCA houve saldo salvo
+      // 3. ⚠️ INTERCEPTAR "Aguardando" - aplicar valor inicial se wallet está na lista
+      const seedValue = INITIAL_WALLET_VALUES[wallet.name];
+      if (seedValue) {
+        console.log(`[getDetailedBalances] ${wallet.name}: aplicando valor inicial seed: R$ ${seedValue}`);
+        
+        // Criar histórico inicial para persistir o valor
+        createInitialHistoryEntry(wallet.name, seedValue, 'seed-api');
+        
+        // Atualizar cache em memória
+        balanceCache.set(wallet.name, {
+          ...wallet,
+          balance: seedValue,
+          lastUpdated: new Date(),
+          status: 'success',
+          lastKnownValue: seedValue,
+          error: undefined
+        });
+        
+        return {
+          ...wallet,
+          balance: seedValue,
+          lastUpdated: new Date(),
+          status: 'success' as const,
+          lastKnownValue: seedValue,
+          error: undefined
+        };
+      }
+      
+      // 4. ⚠️ APENAS AQUI pode retornar "Aguardando" - quando NUNCA houve saldo salvo e NÃO está na lista seed
       console.log(`[getDetailedBalances] ${wallet.name}: sem histórico disponível - aguardando primeira coleta`);
       return {
         ...wallet,
