@@ -443,10 +443,30 @@ export default function MonthlySnapshotsPage() {
       const freshYearSnapshots = queryClient.getQueryData<Record<string, Record<number, SnapshotData>>>(["/api/snapshots/year", selectedYear]) || {};
       const freshMonthStatus = queryClient.getQueryData<Record<number, boolean>>(["/api/snapshots/month-status", selectedYear]) || {};
       
+      const year = parseInt(selectedYear);
+      
+      // Update monthDates for unlocked months with last day of month
+      setMonthDates((prev) => {
+        const newDates = { ...prev };
+        
+        for (let month = 0; month < 12; month++) {
+          const monthKey = month.toString();
+          const isLocked = freshMonthStatus[month + 1] === true;
+          
+          // ONLY update dates for unlocked months
+          if (!isLocked) {
+            // Calculate last day of month: month + 1 for next month, day 0 gives last day of previous month
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+            newDates[monthKey] = lastDayOfMonth.toISOString().split("T")[0];
+          }
+        }
+        
+        return newDates;
+      });
+      
       // Update monthUpdates with fresh calculated values for unlocked months
       setMonthUpdates((prev) => {
         const newUpdates = { ...prev };
-        const year = parseInt(selectedYear);
         
         // Iterate through all 12 months
         for (let month = 0; month < 12; month++) {
