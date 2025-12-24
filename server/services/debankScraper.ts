@@ -8,6 +8,13 @@ import { selectAndScrapePlatform } from './platformScrapers';
 import { storage } from '../storage';
 import { readCache } from './walletCache';
 import { convertToBRL, getExchangeRate } from './exchangeRate';
+import { 
+  loadHistoryFromFile, 
+  saveHistoryToFile, 
+  syncToGitHub, 
+  pullFromGitHub,
+  type WalletHistoryEntry 
+} from './walletHistorySync';
 
 puppeteerExtra.use(StealthPlugin());
 const execAsync = promisify(exec);
@@ -170,6 +177,9 @@ export function setWallets(newWallets: WalletConfig[]): void {
 const balanceCache = new Map<string, WalletBalance>();
 let refreshInterval: NodeJS.Timeout | null = null;
 
+// 🆕 Cache do histórico do GitHub
+let gitHistoryCache: Map<string, WalletHistoryEntry> = new Map();
+
 // 🕒 Controle de frequência: rastrear última atualização de cada wallet
 const lastWalletUpdate = new Map<string, number>();
 const MIN_WALLET_UPDATE_INTERVAL = 60 * 1000; // 1 minuto entre atualizações da MESMA wallet
@@ -281,6 +291,68 @@ async function processRefreshQueue() {
   }
 }
 
+// ============================================================================
+// SINCRONIZAÇÃO COM GITHUB
+// ============================================================================
+
+// Carregar histórico do GitHub ao iniciar
+async function initializeHistory() {
+  console.log('[WalletTracker] 🚀 Inicializando histórico...');
+  
+  // Tentar fazer pull do GitHub
+  await pullFromGitHub();
+  
+  // Carregar do arquivo JSON
+  gitHistoryCache = loadHistoryFromFile();
+  
+  // Sincronizar com cache em memória
+  for (const [name, entry] of gitHistoryCache.entries()) {
+    balanceCache.set(name, {
+      id: entry.id,
+      name: entry.name,
+      link: '', // Será preenchido quando wallet for configurada
+      balance: entry.balance,
+      lastUpdated: new Date(entry.lastUpdated),
+      status: entry.status as any,
+      lastKnownValue: entry.balance,
+    });
+  }
+  
+  console.log(`[WalletTracker] ✅ ${gitHistoryCache.size} registros carregados do GitHub`);
+}
+
+// Salvar no arquivo JSON e sincronizar com GitHub
+function syncHistoryToGitHub() {
+  try {
+    // Converter cache para formato de arquivo
+    const historyMap = new Map<string, WalletHistoryEntry>();
+    
+    for (const [name, cache] of balanceCache.entries()) {
+      if (cache.lastKnownValue && cache.lastKnownValue !== 'Aguardando' && cache.lastKnownValue !== 'Erro') {
+        historyMap.set(name, {
+          id: cache.id || name,
+          name: name,
+          balance: cache.lastKnownValue,
+          lastUpdated: cache.lastUpdated.toISOString(),
+          status: cache.status,
+          platform: 'unknown',
+        });
+      }
+    }
+    
+    // Salvar no arquivo
+    if (saveHistoryToFile(historyMap)) {
+      // Sincronizar com GitHub (não aguarda para não bloquear)
+      const timestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      syncToGitHub(`Update wallet balances - ${timestamp}`).catch(err => {
+        console.error('[WalletTracker] ⚠️ Erro ao sincronizar com GitHub:', err);
+      });
+    }
+  } catch (error) {
+    console.error('[WalletTracker] ❌ Erro ao sincronizar histórico:', error);
+  }
+}
+
 // Chromium path detection removed - puppeteer will use its bundled Chromium automatically
 
 // ============================================================================
@@ -324,6 +396,9 @@ async function scrapeWalletWithTimeout(
           // Save to cache
           addCacheEntry(wallet.name, result.value, result.platform, 'success');
           
+          // 🆕 SINCRONIZAR COM GITHUB
+          syncHistoryToGitHub();
+          
           resolve({
             id: wallet.id,
             name: wallet.name,
@@ -345,9 +420,12 @@ async function scrapeWalletWithTimeout(
           
           // ✅ SEMPRE consultar histórico do banco PRIMEIRO
           console.log(`[Wallet] 💾 Consultando histórico no banco para ${wallet.name}`);
+          
+          // 🆕 Tentar cache do GitHub primeiro
+          const gitEntry = gitHistoryCache.get(wallet.name);
           const lastValidEntry = getLastValidBalance(wallet.name);
-          let fallbackValue = lastValidEntry?.balance;
-          let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
+          let fallbackValue = gitEntry?.balance || lastValidEntry?.balance;
+          let fallbackTimestamp = gitEntry ? new Date(gitEntry.lastUpdated) : (lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined);
           
           // Se não tem histórico no arquivo, tenta cache em memória
           if (!fallbackValue) {
@@ -395,9 +473,12 @@ async function scrapeWalletWithTimeout(
         console.error(`[Wallet] ❌ Erro fatal em ${wallet.name}: ${msg}`);
         
         console.log(`[Wallet] 💾 Tentando recuperar do banco após erro...`);
+        
+        // 🆕 Tentar cache do GitHub primeiro
+        const gitEntry = gitHistoryCache.get(wallet.name);
         const lastValidEntry = getLastValidBalance(wallet.name);
-        let fallbackValue = lastValidEntry?.balance;
-        let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
+        let fallbackValue = gitEntry?.balance || lastValidEntry?.balance;
+        let fallbackTimestamp = gitEntry ? new Date(gitEntry.lastUpdated) : (lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined);
         
         if (!fallbackValue) {
           const cached = balanceCache.get(wallet.name);
@@ -440,9 +521,12 @@ async function scrapeWalletWithTimeout(
         console.error(`[Wallet] ⚠️ ExecuteScrap error for ${wallet.name}: ${err}`);
         
         console.log(`[Wallet] 💾 Consultando banco após erro no execute...`);
+        
+        // 🆕 Tentar cache do GitHub primeiro
+        const gitEntry = gitHistoryCache.get(wallet.name);
         const lastValidEntry = getLastValidBalance(wallet.name);
-        let fallbackValue = lastValidEntry?.balance;
-        let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
+        let fallbackValue = gitEntry?.balance || lastValidEntry?.balance;
+        let fallbackTimestamp = gitEntry ? new Date(gitEntry.lastUpdated) : (lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined);
         
         if (!fallbackValue) {
           const cached = balanceCache.get(wallet.name);
@@ -483,9 +567,11 @@ async function scrapeWalletWithTimeout(
         console.log(`[Wallet] ⏱️ Timeout atingido para ${wallet.name}`);
         console.log(`[Wallet] 💾 Consultando banco após timeout...`);
         
+        // 🆕 Tentar cache do GitHub primeiro
+        const gitEntry = gitHistoryCache.get(wallet.name);
         const lastValidEntry = getLastValidBalance(wallet.name);
-        let fallbackValue = lastValidEntry?.balance;
-        let fallbackTimestamp = lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined;
+        let fallbackValue = gitEntry?.balance || lastValidEntry?.balance;
+        let fallbackTimestamp = gitEntry ? new Date(gitEntry.lastUpdated) : (lastValidEntry ? new Date(lastValidEntry.timestamp) : undefined);
         
         if (!fallbackValue) {
           const cached = balanceCache.get(wallet.name);
@@ -1081,14 +1167,29 @@ export function startStepMonitor(intervalMs: number): void {
   
   if (refreshInterval) clearInterval(refreshInterval);
   
-  // Initial run
-  updateWalletsSequentially(WALLETS);
-  
-  // Schedule periodic updates
-  refreshInterval = setInterval(() => {
-    console.log('[Step.finance] Scheduled wallet update');
+  // 🆕 Inicializar histórico do GitHub
+  initializeHistory().then(() => {
+    console.log('[WalletTracker] Histórico inicializado, começando atualizações...');
+    
+    // Initial run
     updateWalletsSequentially(WALLETS);
-  }, intervalMs);
+    
+    // Schedule periodic updates
+    refreshInterval = setInterval(() => {
+      console.log('[Step.finance] Scheduled wallet update');
+      updateWalletsSequentially(WALLETS);
+    }, intervalMs);
+  }).catch(err => {
+    console.error('[WalletTracker] Erro ao inicializar histórico:', err);
+    
+    // Continuar mesmo com erro
+    updateWalletsSequentially(WALLETS);
+    
+    refreshInterval = setInterval(() => {
+      console.log('[Step.finance] Scheduled wallet update');
+      updateWalletsSequentially(WALLETS);
+    }, intervalMs);
+  });
 }
 
 export async function forceRefreshAndWait(): Promise<WalletBalance[]> {

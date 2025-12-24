@@ -23,5 +23,14 @@ coverage/
 eng.traineddata
 attached_assets/
 .git/
-data/
+
+# Database files (SQLite local cache)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# BUT allow wallet history JSON (must be versioned!)
+!data/wallet-history.json
+
 app.db-*
