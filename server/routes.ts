@@ -8,7 +8,7 @@ import { fetchAssetPrice, updateAssetPrice, startPriceUpdater, fetchHistoricalAs
 import { fetchExchangeRates, convertToBRL, getExchangeRate } from "./services/exchangeRate";
 import { fetchWalletBalance } from "./services/walletBalance";
 import { getBalances, getDetailedBalances, startStepMonitor, forceRefresh, forceRefreshAndWait, setWallets, forceRefreshWallet, initializeWallet } from "./services/debankScraper";
-import { getWalletHistory, getAllHistory, getLatestByWallet, getWalletStats, getLastHighestValue, getLastValidBalance } from "./services/walletCache";
+import { getWalletHistory, getAllHistory, getLatestByWallet, getWalletStats, getLastHighestValue, getLastValidBalance, createInitialHistoryEntry } from "./services/walletCache";
 import { fetchJupPortfolio } from "./services/jupAgScraper";
 import { validateCredentials } from "./sqlite-auth";
 
@@ -1203,8 +1203,8 @@ export async function registerRoutes(
       const allWallets = await storage.getWallets(userId);
       setWallets(allWallets.map(w => ({ id: w.id, name: w.name, link: w.link })));
       
-      // Initialize the new wallet in cache so it appears immediately
-      initializeWallet({ id: wallet.id, name: validated.name, link: validated.link });
+      // Initialize the new wallet in cache with value from asset if exists
+      await initializeWallet({ id: wallet.id, name: validated.name, link: validated.link });
       
       res.status(201).json(wallet);
     } catch (error) {
@@ -1272,6 +1272,43 @@ export async function registerRoutes(
       res.json(activities);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // Wallet history endpoints - show collection history for each wallet
+  app.get("/api/wallet-history/:walletName", async (req, res) => {
+    try {
+      const { walletName } = req.params;
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      const history = getWalletHistory(walletName, limit);
+      const stats = getWalletStats(walletName);
+      
+      res.json({
+        walletName,
+        history,
+        stats,
+        totalEntries: history.length
+      });
+    } catch (error) {
+      console.error('[API] Error fetching wallet history:', error);
+      res.status(500).json({ error: "Failed to fetch wallet history" });
+    }
+  });
+
+  app.get("/api/wallet-history", async (req, res) => {
+    try {
+      const allHistory = getAllHistory();
+      const latestByWallet = getLatestByWallet();
+      
+      res.json({
+        allHistory: allHistory.slice(0, 100), // Last 100 entries
+        latestByWallet,
+        totalEntries: allHistory.length
+      });
+    } catch (error) {
+      console.error('[API] Error fetching all wallet history:', error);
+      res.status(500).json({ error: "Failed to fetch wallet history" });
     }
   });
 

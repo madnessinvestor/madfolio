@@ -3,7 +3,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser } from 'puppeteer';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { addCacheEntry, getLastValidBalance } from './walletCache';
+import { addCacheEntry, getLastValidBalance, createInitialHistoryEntry } from './walletCache';
 import { selectAndScrapePlatform } from './platformScrapers';
 import { storage } from '../storage';
 import { readCache } from './walletCache';
@@ -952,19 +952,54 @@ export async function getDetailedBalances(): Promise<WalletBalance[]> {
   return await Promise.all(balances);
 }
 
-export function initializeWallet(wallet: WalletConfig): void {
+export async function initializeWallet(wallet: WalletConfig): Promise<void> {
   if (!balanceCache.has(wallet.name)) {
-    balanceCache.set(wallet.name, {
-      id: wallet.id,
-      name: wallet.name,
-      link: wallet.link,
-      balance: 'Carregando...',
-      lastUpdated: new Date(),
-      status: 'unavailable',
-      error: 'Aguardando primeira coleta',
-      lastKnownValue: undefined
-    });
-    console.log(`[Init] Initialized wallet ${wallet.name} in cache`);
+    // Try to get initial value from existing asset
+    let initialValue: string | null = null;
+    
+    try {
+      const assets = await storage.getAssets();
+      const matchingAsset = assets.find(asset =>
+        (asset.market === 'crypto' || asset.market === 'crypto_simplified') &&
+        asset.name.toLowerCase() === wallet.name.toLowerCase()
+      );
+      
+      if (matchingAsset && matchingAsset.currentPrice && matchingAsset.currentPrice > 0) {
+        initialValue = matchingAsset.currentPrice.toString();
+        console.log(`[Init] Found existing asset value for ${wallet.name}: R$ ${initialValue}`);
+      }
+    } catch (error) {
+      console.log(`[Init] Could not fetch asset for ${wallet.name}:`, error);
+    }
+    
+    // If we have an initial value, create history entry immediately
+    if (initialValue) {
+      createInitialHistoryEntry(wallet.name, initialValue, 'asset');
+      
+      balanceCache.set(wallet.name, {
+        id: wallet.id,
+        name: wallet.name,
+        link: wallet.link,
+        balance: initialValue,
+        lastUpdated: new Date(),
+        status: 'success',
+        lastKnownValue: initialValue
+      });
+      console.log(`[Init] ✓ Initialized wallet ${wallet.name} with asset value: R$ ${initialValue}`);
+    } else {
+      // No initial value - wallet will stay in "Aguardando" until first successful scrape
+      balanceCache.set(wallet.name, {
+        id: wallet.id,
+        name: wallet.name,
+        link: wallet.link,
+        balance: 'Aguardando',
+        lastUpdated: new Date(),
+        status: 'temporary_error',
+        error: 'Aguardando primeira coleta bem-sucedida',
+        lastKnownValue: undefined
+      });
+      console.log(`[Init] Wallet ${wallet.name} initialized - awaiting first scrape`);
+    }
   }
 }
 

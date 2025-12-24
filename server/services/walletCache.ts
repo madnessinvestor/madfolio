@@ -198,6 +198,49 @@ export function getLastValidBalance(walletName: string): CacheEntry | null {
   return entries[0];
 }
 
+/**
+ * Create initial history entry for a wallet
+ * This ensures every wallet has at least one history entry to prevent "Aguardando" loop
+ * Called when:
+ * 1. Wallet is first created
+ * 2. First scraping attempt fails but we have a value from assets
+ */
+export function createInitialHistoryEntry(
+  walletName: string,
+  initialBalance: string,
+  platform: string = 'manual'
+): void {
+  // Only create if no history exists
+  const existing = getLastValidBalance(walletName);
+  if (existing) {
+    console.log(`[Cache] Wallet ${walletName} already has history, skipping initial entry`);
+    return;
+  }
+  
+  // Validate that we have a numeric value
+  const numericValue = parseFloat(initialBalance.replace(/[$,]/g, ''));
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    console.log(`[Cache] ⚠️ Cannot create initial history for ${walletName} with invalid value: ${initialBalance}`);
+    return;
+  }
+  
+  // Create initial entry
+  const cache = readCache();
+  const entry: CacheEntry = {
+    walletName,
+    balance: initialBalance,
+    platform,
+    timestamp: new Date().toISOString(),
+    status: 'success'
+  };
+  
+  cache.entries.push(entry);
+  cache.lastUpdated = new Date().toISOString();
+  writeCache(cache);
+  
+  console.log(`[Cache] ✓ Created initial history entry for ${walletName}: ${initialBalance}`);
+}
+
 // Get wallet statistics
 export function getWalletStats(walletName: string) {
   const cache = readCache();
