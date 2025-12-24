@@ -180,6 +180,24 @@ export function getLastHighestValue(walletName: string): string | null {
   return highest.balance;
 }
 
+// Get the last valid balance from history (most recent valid entry)
+// This is the SOURCE OF TRUTH when scraping fails
+export function getLastValidBalance(walletName: string): CacheEntry | null {
+  const cache = readCache();
+  
+  // Find most recent successful entry
+  const entries = cache.entries
+    .filter(e => e.walletName === walletName && e.status === 'success')
+    .reverse(); // Most recent first
+  
+  if (entries.length === 0) {
+    return null;
+  }
+  
+  // Return the most recent valid entry
+  return entries[0];
+}
+
 // Get wallet statistics
 export function getWalletStats(walletName: string) {
   const cache = readCache();

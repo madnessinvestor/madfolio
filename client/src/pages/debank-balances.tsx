@@ -60,19 +60,6 @@ export default function WalletTracker() {
     refetch();
   }, [refetch]);
 
-  // Processar balances para garantir que nunca fiquem presos em "Carregando..."
-  const processedBalances = balances?.map(wallet => {
-    // Se o balance é "Carregando..." ou "Loading...", usar lastKnownValue como fallback
-    if ((wallet.balance === "Carregando..." || wallet.balance === "Loading..." || wallet.balance === "Indisponível") && wallet.lastKnownValue) {
-      return {
-        ...wallet,
-        balance: wallet.lastKnownValue,
-        status: 'temporary_error' as const,
-      };
-    }
-    return wallet;
-  });
-
   // Timeout de segurança: limpar wallets em atualização após 90 segundos
   useEffect(() => {
     if (updatingWallets.size > 0) {
@@ -286,7 +273,7 @@ export default function WalletTracker() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        {processedBalances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
+        {balances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
           <Card key={wallet.id || wallet.name} data-testid={`card-wallet-${wallet.id || wallet.name}`}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">

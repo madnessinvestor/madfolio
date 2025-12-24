@@ -3,7 +3,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser } from 'puppeteer';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { addCacheEntry, getLastHighestValue } from './walletCache';
+import { addCacheEntry, getLastValidBalance } from './walletCache';
 import { selectAndScrapePlatform } from './platformScrapers';
 import { storage } from '../storage';
 import { readCache } from './walletCache';
@@ -227,8 +227,12 @@ async function resetWalletTrackerState(): Promise<void> {
     for (const [walletName, balance] of Array.from(balanceCache.entries())) {
       if (balance.status !== 'success') {
         // Wallet em estado de erro - preparar para nova tentativa
-        const historicalValue = getLastHighestValue(walletName);
-        const fallbackValue = balance.lastKnownValue || historicalValue;
+        const lastValidEntry = getLastValidBalance(walletName);
+        let fallbackValue = lastValidEntry?.balance;
+        
+        if (!fallbackValue) {
+          fallbackValue = balance.lastKnownValue;
+        }
         
         if (fallbackValue) {
           balanceCache.set(walletName, {
@@ -345,16 +349,14 @@ async function scrapeWalletWithTimeout(
             console.log(`[Main] Browser not available for ${wallet.name}, using fallback immediately`);
           }
           
-          // Try fallback: cache primeiro, depois histórico
-          const cached = balanceCache.get(wallet.name);
-          let fallbackValue = cached?.lastKnownValue;
+          // Try fallback: histórico do arquivo primeiro, depois cache em memória
+          const lastValidEntry = getLastValidBalance(wallet.name);
+          let fallbackValue = lastValidEntry?.balance;
           
-          // Se não tem cache, tenta buscar último maior valor do histórico
+          // Se não tem histórico, tenta cache em memória
           if (!fallbackValue) {
-            const historicalValue = getLastHighestValue(wallet.name);
-            if (historicalValue) {
-              fallbackValue = historicalValue;
-            }
+            const cached = balanceCache.get(wallet.name);
+            fallbackValue = cached?.lastKnownValue;
           }
           
           if (fallbackValue) {
@@ -396,8 +398,13 @@ async function scrapeWalletWithTimeout(
         const msg = error instanceof Error ? error.message : 'Unknown error';
         console.error(`[Main] Unhandled error for ${wallet.name}: ${msg}`);
         
-        const cached = balanceCache.get(wallet.name);
-        let fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        const lastValidEntry = getLastValidBalance(wallet.name);
+        let fallbackValue = lastValidEntry?.balance;
+        
+        if (!fallbackValue) {
+          const cached = balanceCache.get(wallet.name);
+          fallbackValue = cached?.lastKnownValue;
+        }
         
         if (fallbackValue) {
           console.log(`[Main] Using fallback after error: ${fallbackValue}`);
@@ -435,8 +442,13 @@ async function scrapeWalletWithTimeout(
         console.error(`[Main] ExecuteScrap error for ${wallet.name}: ${err}`);
         
         // Tentar fallback mesmo em caso de erro crítico
-        const cached = balanceCache.get(wallet.name);
-        const fallbackValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        const lastValidEntry = getLastValidBalance(wallet.name);
+        let fallbackValue = lastValidEntry?.balance;
+        
+        if (!fallbackValue) {
+          const cached = balanceCache.get(wallet.name);
+          fallbackValue = cached?.lastKnownValue;
+        }
         
         if (fallbackValue) {
           console.log(`[Main] Using fallback after execution error: ${fallbackValue}`);
@@ -469,9 +481,13 @@ async function scrapeWalletWithTimeout(
         completed = true;
         console.log(`[Main] Timeout for ${wallet.name}, using fallback`);
         
-        const cached = balanceCache.get(wallet.name);
-        const historicalValue = getLastHighestValue(wallet.name);
-        let fallbackValue = cached?.lastKnownValue || (historicalValue ? historicalValue : undefined);
+        const lastValidEntry = getLastValidBalance(wallet.name);
+        let fallbackValue = lastValidEntry?.balance;
+        
+        if (!fallbackValue) {
+          const cached = balanceCache.get(wallet.name);
+          fallbackValue = cached?.lastKnownValue;
+        }
         
         if (fallbackValue) {
           // ✅ Fallback já está no histórico, não salvar novamente
@@ -784,8 +800,14 @@ async function updateWalletsSequentially(wallets: WalletConfig[]): Promise<void>
         consecutiveFailures++; // Incrementar contador de falhas
         totalFailures++; // Incrementar contador total de falhas
         console.log(`[Sequential] Failed to get valid value for ${wallet.name} after ${maxAttempts} attempts (consecutive: ${consecutiveFailures}, total: ${totalFailures})`);
-        const cached = balanceCache.get(wallet.name);
-        const historicalValue = cached?.lastKnownValue || getLastHighestValue(wallet.name);
+        
+        const lastValidEntry = getLastValidBalance(wallet.name);
+        let historicalValue = lastValidEntry?.balance;
+        
+        if (!historicalValue) {
+          const cached = balanceCache.get(wallet.name);
+          historicalValue = cached?.lastKnownValue;
+        }
         
         if (historicalValue) {
           console.log(`[Sequential] Using historical fallback value: ${historicalValue}`);
@@ -885,52 +907,54 @@ export function getBalances(): string[] {
 
 export async function getDetailedBalances(): Promise<WalletBalance[]> {
   const walletNames = new Set(WALLETS.map(w => w.name));
-  // Ensure all wallets have at least their last highest valid value
+  
+  // 🎯 REGRA PRINCIPAL: Backend é fonte única de verdade
+  // Se scraping falhou, SEMPRE usar último saldo válido do histórico
   const balances = Array.from(balanceCache.values()).filter(balance => walletNames.has(balance.name)).map(async wallet => {
-    // If balance is "Carregando..." or "Indisponível", try to use last highest valid value from history
-    if ((wallet.balance === "Carregando..." || wallet.balance === "Indisponível") || wallet.status !== 'success') {
-      const lastHighestValue = getLastHighestValue(wallet.name);
-      if (lastHighestValue) {
-        // Convert value to BRL if needed
-        const numValue = parseCurrencyValue(lastHighestValue);
-        let brlValue = numValue;
+    // Se o status NÃO é success, buscar último saldo válido do histórico
+    if (wallet.status !== 'success') {
+      // 1. Buscar último registro válido do histórico (arquivo wallet-cache.json)
+      const lastValidEntry = getLastValidBalance(wallet.name);
+      
+      if (lastValidEntry) {
+        console.log(`[getDetailedBalances] ${wallet.name}: usando último saldo válido do histórico: ${lastValidEntry.balance} (${lastValidEntry.timestamp})`);
         
-        // Check if value is in USD (contains $ or comma separator)
-        if (lastHighestValue.includes('$') || lastHighestValue.includes(',')) {
-          const exchangeRate = await getExchangeRate('USD');
-          brlValue = numValue * (exchangeRate >= 3.0 && exchangeRate <= 7.0 ? exchangeRate : 5.5);
-          console.log(`[getDetailedBalances] Converted ${wallet.name}: ${numValue} USD → ${brlValue.toFixed(2)} BRL`);
-        }
-        
+        // Retornar o saldo do histórico diretamente
+        // O valor já está em BRL porque foi salvo convertido
         return {
           ...wallet,
-          balance: brlValue.toString(),
+          balance: lastValidEntry.balance,
+          lastUpdated: new Date(lastValidEntry.timestamp),
           status: 'temporary_error' as const,
-          lastKnownValue: brlValue.toString()
+          lastKnownValue: lastValidEntry.balance,
+          error: 'Usando último saldo salvo (scraping indisponível)'
         };
       }
-      // Fallback to lastKnownValue if no history found
+      
+      // 2. Se não tem histórico, usar lastKnownValue do cache em memória
       if (wallet.lastKnownValue) {
-        // Convert value to BRL if needed
-        const numValue = parseCurrencyValue(wallet.lastKnownValue);
-        let brlValue = numValue;
-        
-        // Check if value is in USD (contains $ or comma separator)
-        if (wallet.lastKnownValue.includes('$') || wallet.lastKnownValue.includes(',')) {
-          const exchangeRate = await getExchangeRate('USD');
-          brlValue = numValue * (exchangeRate >= 3.0 && exchangeRate <= 7.0 ? exchangeRate : 5.5);
-          console.log(`[getDetailedBalances] Converted ${wallet.name} (fallback): ${numValue} USD → ${brlValue.toFixed(2)} BRL`);
-        }
-        
+        console.log(`[getDetailedBalances] ${wallet.name}: usando lastKnownValue do cache: ${wallet.lastKnownValue}`);
         return {
           ...wallet,
-          balance: brlValue.toString(),
+          balance: wallet.lastKnownValue,
           status: 'temporary_error' as const,
         };
       }
+      
+      // 3. Se não tem nada, marcar como aguardando primeira coleta
+      console.log(`[getDetailedBalances] ${wallet.name}: sem histórico disponível - aguardando primeira coleta`);
+      return {
+        ...wallet,
+        balance: 'Aguardando',
+        status: 'temporary_error' as const,
+        error: 'Aguardando primeira coleta bem-sucedida'
+      };
     }
+    
+    // Status é success - retornar normalmente
     return wallet;
   });
+  
   return await Promise.all(balances);
 }
 
@@ -976,9 +1000,14 @@ export async function forceRefreshAndWait(): Promise<WalletBalance[]> {
   
   // STEP 3: Marca todas as wallets como "em atualização" com valores históricos
   for (const wallet of WALLETS) {
-    const cached = balanceCache.get(wallet.name);
-    const historicalValue = getLastHighestValue(wallet.name);
-    const fallbackValue = cached?.lastKnownValue || (historicalValue ? historicalValue : undefined);
+    const lastValidEntry = getLastValidBalance(wallet.name);
+    let fallbackValue = lastValidEntry?.balance;
+    
+    if (!fallbackValue) {
+      const cached = balanceCache.get(wallet.name);
+      fallbackValue = cached?.lastKnownValue;
+    }
+    
     balanceCache.set(wallet.name, {
       id: wallet.id,
       name: wallet.name,
