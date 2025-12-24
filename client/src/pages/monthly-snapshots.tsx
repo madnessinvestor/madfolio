@@ -428,21 +428,55 @@ export default function MonthlySnapshotsPage() {
   const handleSyncInvestments = async () => {
     setIsSyncing(true);
     try {
+      // First, sync with backend
       await apiRequest("POST", "/api/portfolio/sync");
       
-      // Invalidate and wait for queries to refetch
+      // Refetch assets and snapshots to get latest data
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["/api/snapshots/year", selectedYear] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/snapshots/month-status", selectedYear] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/assets"] })
+        queryClient.refetchQueries({ queryKey: ["/api/assets"] }),
+        queryClient.refetchQueries({ queryKey: ["/api/snapshots/year", selectedYear] }),
+        queryClient.refetchQueries({ queryKey: ["/api/snapshots/month-status", selectedYear] })
       ]);
       
-      // Force refetch to ensure data is updated
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["/api/snapshots/year", selectedYear] }),
-        queryClient.refetchQueries({ queryKey: ["/api/snapshots/month-status", selectedYear] }),
-        queryClient.refetchQueries({ queryKey: ["/api/assets"] })
-      ]);
+      // Get fresh data
+      const freshAssets = queryClient.getQueryData<Asset[]>(["/api/assets"]) || [];
+      const freshYearSnapshots = queryClient.getQueryData<Record<string, Record<number, SnapshotData>>>(["/api/snapshots/year", selectedYear]) || {};
+      const freshMonthStatus = queryClient.getQueryData<Record<number, boolean>>(["/api/snapshots/month-status", selectedYear]) || {};
+      
+      // Update monthUpdates with fresh calculated values for unlocked months
+      setMonthUpdates((prev) => {
+        const newUpdates = { ...prev };
+        const year = parseInt(selectedYear);
+        
+        // Iterate through all 12 months
+        for (let month = 0; month < 12; month++) {
+          const monthKey = month.toString();
+          const isLocked = freshMonthStatus[month + 1] === true; // monthStatus uses 1-based month
+          
+          // ONLY update unlocked months
+          if (!isLocked) {
+            newUpdates[monthKey] = { ...newUpdates[monthKey] };
+            
+            // Update each asset by its ID
+            freshAssets.forEach((asset) => {
+              // Check if there's a snapshot for this asset in this month
+              const monthData = freshYearSnapshots[asset.id]?.[month];
+              
+              // Calculate current value: quantity * currentPrice
+              const currentValue = (asset.quantity || 0) * (asset.currentPrice || 0);
+              
+              // Use snapshot value if exists and is recent, otherwise use calculated current value
+              const valueToUse = monthData?.value || currentValue;
+              
+              // Update the state with the asset identified by asset.id
+              newUpdates[monthKey][asset.id] = formatCurrencyInput(valueToUse);
+            });
+          }
+          // Locked months are NOT touched
+        }
+        
+        return newUpdates;
+      });
       
       toast({
         title: "Investimentos atualizados",
