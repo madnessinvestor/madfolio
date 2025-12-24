@@ -133,7 +133,7 @@ function MainApp() {
                 onClick={() => saveMutation.mutate()}
                 disabled={saveMutation.isPending}
                 data-testid="button-save-changes"
-                className="gap-2"
+                className="gap-2 hidden"
               >
                 {saveMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
