@@ -217,6 +217,15 @@ export async function registerRoutes(
       });
       
       await storage.updateAsset(req.params.id, { isDeleted: 1, deletedAt: new Date() });
+      
+      // Sync portfolio evolution after asset deletion
+      try {
+        const { syncPortfolioEvolution } = await import("./services/portfolioSync");
+        await syncPortfolioEvolution(userId);
+      } catch (error) {
+        console.error("[API] Error syncing portfolio evolution:", error);
+      }
+      
       res.json({ success: true, message: "Asset deleted successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete asset" });
@@ -234,12 +243,22 @@ export async function registerRoutes(
   });
 
   app.post("/api/assets/:id/refresh-price", async (req: any, res) => {
+    const userId = req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
       const price = await updateAssetPrice(req.params.id);
       if (price === null) {
         return res.status(404).json({ error: "Could not fetch price" });
       }
       const asset = await storage.getAsset(req.params.id);
+      
+      // Sync portfolio evolution after price refresh
+      try {
+        const { syncPortfolioEvolution } = await import("./services/portfolioSync");
+        await syncPortfolioEvolution(userId);
+      } catch (error) {
+        console.error("[API] Error syncing portfolio evolution:", error);
+      }
+      
       res.json(asset);
     } catch (error) {
       res.status(500).json({ error: "Failed to refresh price" });

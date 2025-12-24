@@ -182,6 +182,14 @@ export async function updateAllAssetPrices(): Promise<void> {
       await updateAssetPrice(asset.id);
       await new Promise(resolve => setTimeout(resolve, 500));
     }
+    
+    // Sync portfolio evolution after updating all prices
+    try {
+      const { syncPortfolioEvolution } = await import("./portfolioSync");
+      await syncPortfolioEvolution("default-user");
+    } catch (error) {
+      console.error("[Pricing] Error syncing portfolio evolution:", error);
+    }
   } catch (error) {
     console.error("Error updating all asset prices:", error);
   }
