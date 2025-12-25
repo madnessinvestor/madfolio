@@ -2,16 +2,16 @@
   {
     "id": "3c6def059126280b714103bbc04a3d31",
     "name": "APTOS-madness",
-    "balance": "$15.65",
-    "lastUpdated": "2025-12-25T11:07:24.378Z",
+    "balance": "$15.63",
+    "lastUpdated": "2025-12-25T10:54:36.768Z",
     "status": "success",
     "platform": "unknown"
   },
   {
     "id": "4a33f86f754f33c0323cec9a0713d9f3",
     "name": "EVM-madnessmain",
-    "balance": "$53,559",
-    "lastUpdated": "2025-12-25T10:55:19.766Z",
+    "balance": "$53,661",
+    "lastUpdated": "2025-12-25T11:08:07.605Z",
     "status": "success",
     "platform": "unknown"
   },
