@@ -20,6 +20,12 @@ import {
   FileText,
   Wallet,
   TrendingUp,
+  Twitter,
+  Github,
+  Youtube,
+  Instagram,
+  Send,
+  MessageCircle,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -103,8 +109,75 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4 border-t">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">© 2025 MadFolio</span>
+        <div className="flex flex-col gap-3">
+          <span className="text-xs text-muted-foreground text-center">
+            © 2025 MadFolio by MadnessInvestor
+          </span>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a
+              href="https://x.com/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Twitter/X"
+            >
+              <Twitter className="h-4 w-4" />
+            </a>
+            <a
+              href="https://github.com/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="GitHub"
+            >
+              <Github className="h-4 w-4" />
+            </a>
+            <a
+              href="https://www.youtube.com/@madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="YouTube"
+            >
+              <Youtube className="h-4 w-4" />
+            </a>
+            <a
+              href="https://farcaster.xyz/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Farcaster"
+            >
+              <MessageCircle className="h-4 w-4" />
+            </a>
+            <a
+              href="https://www.instagram.com/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Instagram"
+            >
+              <Instagram className="h-4 w-4" />
+            </a>
+            <a
+              href="https://t.me/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Telegram"
+            >
+              <Send className="h-4 w-4" />
+            </a>
+            <a
+              href="https://discord.com/users/madnessinvestor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Discord"
+            >
+              <MessageCircle className="h-4 w-4" strokeWidth={2.5} />
+            </a>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>
