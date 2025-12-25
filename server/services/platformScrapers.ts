@@ -127,7 +127,7 @@ export async function scrapeDebankEVM(
 
     // Wait for JavaScript to render (20 seconds for better loading)
     console.log("[DeBank] ⏳ Aguardando 20s para renderização completa...");
-    await new Promise(resolve => setTimeout(resolve, 20000));
+    await new Promise((resolve) => setTimeout(resolve, 20000));
 
     // Try multiple times with increasing wait times to ensure content is loaded
     let value = null;
@@ -144,7 +144,7 @@ export async function scrapeDebankEVM(
         console.log(
           `[DeBank] ⏳ Aguardando ${waitTime}ms antes da próxima tentativa...`
         );
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
       value = await extractDebankNetWorthEVM(page);
