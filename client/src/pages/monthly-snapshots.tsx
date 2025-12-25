@@ -643,7 +643,7 @@ export default function MonthlySnapshotsPage() {
         description: "Aguarde enquanto coletamos os dados...",
       });
 
-      // Fetch all years data
+      // Fetch all years data (2025-2030)
       const years = ["2025", "2026", "2027", "2028", "2029", "2030"];
       const allYearsData: Array<{
         year: string;
@@ -661,152 +661,164 @@ export default function MonthlySnapshotsPage() {
             `/api/snapshots/month-status/${year}`
           );
 
-          console.log(`Year ${year}:`, {
-            assetsCount: Object.keys(snapshots).length,
-            assetIds: Object.keys(snapshots),
-            monthStatus,
-            sampleAsset: Object.keys(snapshots)[0],
-            sampleData: snapshots[Object.keys(snapshots)[0]],
-          });
-
           allYearsData.push({ year, snapshots, monthStatus });
         } catch (error) {
           console.error(`Error fetching data for year ${year}:`, error);
         }
       }
 
-      console.log("Total assets in component:", assets.length);
-      console.log("Sample asset from component:", assets[0]);
+      // Build list of ALL locked months across all years (sequentially)
+      interface LockedMonthData {
+        year: string;
+        month: number; // 0-11
+        monthStr: string; // "01/2025"
+        assetValues: Record<string, number>; // assetId -> value
+        total: number;
+      }
 
-      // Build column headers dynamically (all months, locked and unlocked)
-      const allMonthColumns: string[] = [];
-      allYearsData.forEach(({ year }) => {
+      const allLockedMonths: LockedMonthData[] = [];
+
+      allYearsData.forEach(({ year, snapshots, monthStatus }) => {
         for (let month = 0; month < 12; month++) {
-          const monthName = monthShortNames[month];
-          const columnKey = `${monthName}_${year}`;
-          allMonthColumns.push(columnKey);
-        }
-      });
+          // Only include locked months (monthStatus is 1-based: month+1)
+          const isLocked = monthStatus[month + 1] === true;
 
-      console.log("All month columns:", allMonthColumns);
+          if (!isLocked) {
+            continue; // Skip unlocked months
+          }
 
-      // Collect all unique asset IDs from all years' snapshots
-      const allAssetIds = new Set<string>();
-      allYearsData.forEach(({ snapshots }) => {
-        Object.keys(snapshots).forEach((id) => allAssetIds.add(id));
-      });
+          const assetValues: Record<string, number> = {};
+          let monthTotal = 0;
 
-      console.log("All asset IDs from snapshots:", Array.from(allAssetIds));
-
-      // Create a map of asset ID to asset details
-      const assetMap = new Map<string, Asset>();
-      assets.forEach((asset) => assetMap.set(asset.id, asset));
-
-      console.log("Asset map size:", assetMap.size);
-      console.log("First asset from map:", Array.from(assetMap.values())[0]);
-
-      // Prepare data for Excel
-      const exportData: any[] = [];
-
-      // Create a row for each asset that has snapshots
-      const assetIdsArray = Array.from(allAssetIds);
-      console.log("Total assets with snapshots:", assetIdsArray.length);
-
-      assetIdsArray.forEach((assetId, index) => {
-        const asset = assetMap.get(assetId);
-        if (!asset) {
-          console.warn(`Asset ${assetId} not found in assets list`);
-          return;
-        }
-
-        const row: any = {
-          Investimento: `${asset.symbol} - ${asset.name}`,
-        };
-
-        // Log do primeiro asset para debug
-        if (index === 0) {
-          console.log("First asset ID from snapshots:", assetId);
-          console.log("First asset object:", asset);
-          console.log(
-            "First asset data from year 2025:",
-            allYearsData[0]?.snapshots[assetId]
-          );
-        }
-
-        // Iterate through each year
-        allYearsData.forEach(({ year, snapshots, monthStatus }) => {
-          // Iterate through each month (0-11)
-          for (let month = 0; month < 12; month++) {
-            const monthName = monthShortNames[month];
-            const columnKey = `${monthName}_${year}`;
-
-            // Get month data regardless of locked status
+          // Collect values for all assets in this month
+          Object.keys(snapshots).forEach((assetId) => {
             const monthData = snapshots[assetId]?.[month];
             const value = monthData?.value ?? 0;
 
-            // Log para debug no primeiro asset e primeiro mês com dados
-            if (index === 0 && month === 0 && year === "2025") {
-              console.log(`Asset ${assetId} - Month ${month} - Year ${year}:`, {
-                monthData,
-                value,
-                snapshotsKeys: Object.keys(snapshots),
-                hasAssetData: !!snapshots[assetId],
-                snapshotMonthKeys: snapshots[assetId]
-                  ? Object.keys(snapshots[assetId])
-                  : [],
-              });
+            if (monthData?.isLocked === 1) {
+              assetValues[assetId] = value;
+              monthTotal += value;
             }
+          });
 
-            row[columnKey] = new Intl.NumberFormat("pt-BR", {
+          allLockedMonths.push({
+            year,
+            month,
+            monthStr: `${String(month + 1).padStart(2, "0")}/${year}`,
+            assetValues,
+            total: monthTotal,
+          });
+        }
+      });
+
+      if (allLockedMonths.length === 0) {
+        toast({
+          title: "Nenhum dado para exportar",
+          description: "Não há meses salvos/bloqueados para exportar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log(`Exporting ${allLockedMonths.length} locked months`);
+
+      // Collect all unique asset IDs from locked months
+      const allAssetIds = new Set<string>();
+      allLockedMonths.forEach(({ assetValues }) => {
+        Object.keys(assetValues).forEach((id) => allAssetIds.add(id));
+      });
+
+      // Create asset map for lookups
+      const assetMap = new Map<string, Asset>();
+      assets.forEach((asset) => assetMap.set(asset.id, asset));
+
+      // Prepare Excel data structure
+      const exportData: any[] = [];
+
+      // Add header row for asset values (first row with asset names)
+      const headerRow: any = {
+        "Mês/Ano": "Mês/Ano",
+      };
+
+      Array.from(allAssetIds).forEach((assetId) => {
+        const asset = assetMap.get(assetId);
+        if (asset) {
+          headerRow[`${asset.symbol}`] = asset.name;
+        }
+      });
+
+      headerRow["TOTAL"] = "Valor Total do Portfólio";
+      headerRow["Variação R$"] = "Variação (R$)";
+      headerRow["Variação %"] = "Variação (%)";
+
+      exportData.push(headerRow);
+
+      // Add data rows (one per locked month)
+      allLockedMonths.forEach((monthData, index) => {
+        const row: any = {
+          "Mês/Ano": monthData.monthStr,
+        };
+
+        // Add value for each asset
+        Array.from(allAssetIds).forEach((assetId) => {
+          const asset = assetMap.get(assetId);
+          if (asset) {
+            const value = monthData.assetValues[assetId] ?? 0;
+            row[`${asset.symbol}`] = new Intl.NumberFormat("pt-BR", {
               style: "currency",
               currency: "BRL",
             }).format(value);
           }
         });
 
-        exportData.push(row);
-      });
+        // Add total
+        row["TOTAL"] = new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(monthData.total);
 
-      // Add total row
-      const totalRow: any = {
-        Investimento: "TOTAL",
-      };
+        // Calculate variation (same logic as "Extrato de Variação Mensal")
+        const isFirstMonth = index === 0;
 
-      allYearsData.forEach(({ year, snapshots }) => {
-        for (let month = 0; month < 12; month++) {
-          const monthName = monthShortNames[month];
-          const columnKey = `${monthName}_${year}`;
+        if (isFirstMonth) {
+          row["Variação R$"] = "-";
+          row["Variação %"] = "-";
+        } else {
+          const previousTotal = allLockedMonths[index - 1].total;
+          const variation = monthData.total - previousTotal;
+          const variationPercent =
+            previousTotal !== 0 ? (variation / previousTotal) * 100 : 0;
 
-          let monthTotal = 0;
-          assetIdsArray.forEach((assetId) => {
-            const monthData = snapshots[assetId]?.[month];
-            if (monthData?.value) {
-              monthTotal += monthData.value;
-            }
-          });
-
-          totalRow[columnKey] = new Intl.NumberFormat("pt-BR", {
+          row["Variação R$"] = new Intl.NumberFormat("pt-BR", {
             style: "currency",
             currency: "BRL",
-          }).format(monthTotal);
+            signDisplay: "always",
+          }).format(variation);
+
+          row["Variação %"] = `${
+            variationPercent > 0 ? "+" : ""
+          }${variationPercent.toFixed(2)}%`;
         }
+
+        exportData.push(row);
       });
-
-      exportData.push(totalRow);
-
-      console.log("Export data sample:", exportData[0]);
-      console.log("Export data sample (second row):", exportData[1]);
-      console.log("Total months exported:", allMonthColumns.length);
-      console.log("Total rows:", exportData.length);
 
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
 
       // Set column widths
-      const colWidths = [{ wch: 40 }]; // Investimento column
-      allMonthColumns.forEach(() => {
-        colWidths.push({ wch: 15 }); // Month columns
+      const colWidths = [{ wch: 12 }]; // Mês/Ano column
+
+      // Asset columns
+      Array.from(allAssetIds).forEach(() => {
+        colWidths.push({ wch: 18 });
       });
+
+      // Total, Variation R$ and %
+      colWidths.push({ wch: 18 }); // TOTAL
+      colWidths.push({ wch: 18 }); // Variação R$
+      colWidths.push({ wch: 15 }); // Variação %
+
       ws["!cols"] = colWidths;
 
       // Create workbook
@@ -824,7 +836,7 @@ export default function MonthlySnapshotsPage() {
 
       toast({
         title: "Exportação concluída",
-        description: `Arquivo ${filename} baixado com sucesso! ${allMonthColumns.length} meses exportados.`,
+        description: `Arquivo ${filename} baixado! ${allLockedMonths.length} meses bloqueados exportados.`,
       });
     } catch (error) {
       console.error("Error exporting to Excel:", error);
