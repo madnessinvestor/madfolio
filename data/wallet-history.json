@@ -10,8 +10,8 @@
   {
     "id": "4a33f86f754f33c0323cec9a0713d9f3",
     "name": "EVM-madnessmain",
-    "balance": "$53,671",
-    "lastUpdated": "2025-12-25T11:39:50.907Z",
+    "balance": "$53,693",
+    "lastUpdated": "2025-12-25T11:22:12.376Z",
     "status": "success",
     "platform": "unknown"
   },
@@ -26,9 +26,9 @@
   {
     "id": "c3b8222449c8bf85a6d7d1305f003452",
     "name": "EVM-madnesstwo",
-    "balance": "93.83999999999999",
-    "lastUpdated": "2025-12-25T11:39:14.656Z",
-    "status": "temporary_error",
+    "balance": "$17",
+    "lastUpdated": "2025-12-25T11:39:59.179Z",
+    "status": "success",
     "platform": "unknown"
   },
   {
