@@ -709,7 +709,10 @@ export default function MonthlySnapshotsPage() {
       const exportData: any[] = [];
 
       // Create a row for each asset that has snapshots
-      allAssetIds.forEach((assetId, index) => {
+      const assetIdsArray = Array.from(allAssetIds);
+      console.log("Total assets with snapshots:", assetIdsArray.length);
+
+      assetIdsArray.forEach((assetId, index) => {
         const asset = assetMap.get(assetId);
         if (!asset) {
           console.warn(`Asset ${assetId} not found in assets list`);
@@ -775,7 +778,7 @@ export default function MonthlySnapshotsPage() {
           const columnKey = `${monthName}_${year}`;
 
           let monthTotal = 0;
-          allAssetIds.forEach((assetId) => {
+          assetIdsArray.forEach((assetId) => {
             const monthData = snapshots[assetId]?.[month];
             if (monthData?.value) {
               monthTotal += monthData.value;
