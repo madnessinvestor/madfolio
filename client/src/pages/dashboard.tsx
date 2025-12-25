@@ -25,7 +25,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDisplayCurrency } from "@/hooks/use-currency";
 import { useCurrencyConverter } from "@/components/CurrencySwitcher";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   Select,
@@ -142,11 +142,38 @@ export default function Dashboard() {
   >({});
   const [savingMonths, setSavingMonths] = useState<Set<number>>(new Set());
   const originalDataRef = useRef<Record<string, Record<string, string>>>({});
+  const autoSaveTimerRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Função auxiliar para salvar automaticamente sem bloquear
+  const autoSaveMonth = useCallback(async (assetId: string, month: number, value: string, date: string) => {
+    try {
+      const numericValue = parseCurrencyValue(value);
+      if (numericValue > 0 && date) {
+        // Salva mas NÃO bloqueia o mês (isLocked permanece 0)
+        await apiRequest("POST", "/api/snapshots", {
+          assetId,
+          value: numericValue,
+          date,
+          isLocked: 0, // Importante: não bloquear no auto-save
+        });
+      }
+    } catch (error) {
+      console.error("Auto-save error:", error);
+    }
+  }, []);
 
   // Initialize useEffect for year persistence
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Cleanup dos timers ao desmontar componente
+  useEffect(() => {
+    return () => {
+      // Limpa todos os timers pendentes
+      Object.values(autoSaveTimerRef.current).forEach(timer => clearTimeout(timer));
+    };
   }, []);
 
   const getMonthSequence = () => {
@@ -401,6 +428,7 @@ export default function Dashboard() {
     const monthNum = parseInt(month);
     if (monthLockedStatus[monthNum]) return;
 
+    // Atualiza o estado local imediatamente
     setMonthUpdates((prev) => {
       const newUpdates = {
         ...prev,
@@ -411,6 +439,20 @@ export default function Dashboard() {
       };
       return newUpdates;
     });
+
+    // Cancela o timer anterior para este ativo/mês (debounce)
+    const key = `${assetId}-${month}`;
+    if (autoSaveTimerRef.current[key]) {
+      clearTimeout(autoSaveTimerRef.current[key]);
+    }
+
+    // Cria novo timer para auto-save após 1 segundo de inatividade
+    autoSaveTimerRef.current[key] = setTimeout(() => {
+      const date = monthDates[monthNum];
+      if (date) {
+        autoSaveMonth(assetId, monthNum, value, date);
+      }
+    }, 1000); // 1 segundo de debounce
   };
 
   const handleSaveMonth = async (month: number) => {
