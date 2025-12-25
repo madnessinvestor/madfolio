@@ -3,7 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw, Wallet, ExternalLink, Trash2, Plus, TrendingUp, TrendingDown, Eye, EyeOff } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  Wallet,
+  ExternalLink,
+  Trash2,
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
@@ -22,7 +33,7 @@ interface WalletBalance {
   balance: string;
   lastUpdated: string;
   error?: string;
-  status?: 'success' | 'temporary_error' | 'unavailable';
+  status?: "success" | "temporary_error" | "unavailable";
   lastKnownValue?: string;
 }
 
@@ -31,12 +42,16 @@ export default function WalletTracker() {
   const [newWalletName, setNewWalletName] = useState("");
   const [newWalletLink, setNewWalletLink] = useState("");
   const [isAddingWallet, setIsAddingWallet] = useState(false);
-  const [selectedWalletForHistory, setSelectedWalletForHistory] = useState<string | null>(null);
-  const [updatingWallets, setUpdatingWallets] = useState<Set<string>>(new Set());
+  const [selectedWalletForHistory, setSelectedWalletForHistory] = useState<
+    string | null
+  >(null);
+  const [updatingWallets, setUpdatingWallets] = useState<Set<string>>(
+    new Set()
+  );
   const [hiddenBalances, setHiddenBalances] = useState<Set<string>>(new Set());
 
   const toggleBalanceVisibility = (walletName: string) => {
-    setHiddenBalances(prev => {
+    setHiddenBalances((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(walletName)) {
         newSet.delete(walletName);
@@ -47,7 +62,12 @@ export default function WalletTracker() {
     });
   };
 
-  const { data: balances, isLoading, error, refetch } = useQuery<WalletBalance[]>({
+  const {
+    data: balances,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<WalletBalance[]>({
     queryKey: ["/api/saldo/detailed"],
     refetchInterval: false, // Desabilitado para evitar race conditions
     staleTime: 30000, // Cache válido por 30 segundos
@@ -67,7 +87,7 @@ export default function WalletTracker() {
         setUpdatingWallets(new Set());
         queryClient.refetchQueries({ queryKey: ["/api/saldo/detailed"] });
       }, 90000); // 90 segundos
-      
+
       return () => clearTimeout(timeout);
     }
   }, [updatingWallets]);
@@ -75,8 +95,10 @@ export default function WalletTracker() {
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/saldo/stats", selectedWalletForHistory],
     queryFn: async () => {
-      const response = await fetch(`/api/saldo/stats/${encodeURIComponent(selectedWalletForHistory || '')}`);
-      if (!response.ok) throw new Error('Failed to fetch stats');
+      const response = await fetch(
+        `/api/saldo/stats/${encodeURIComponent(selectedWalletForHistory || "")}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch stats");
       return response.json();
     },
     enabled: !!selectedWalletForHistory,
@@ -85,8 +107,12 @@ export default function WalletTracker() {
   const { data: history } = useQuery<any[]>({
     queryKey: ["/api/saldo/history", selectedWalletForHistory],
     queryFn: async () => {
-      const response = await fetch(`/api/saldo/history/${encodeURIComponent(selectedWalletForHistory || '')}`);
-      if (!response.ok) throw new Error('Failed to fetch history');
+      const response = await fetch(
+        `/api/saldo/history/${encodeURIComponent(
+          selectedWalletForHistory || ""
+        )}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch history");
       return response.json();
     },
     enabled: !!selectedWalletForHistory,
@@ -103,7 +129,8 @@ export default function WalletTracker() {
       await queryClient.refetchQueries({ queryKey: ["/api/saldo/detailed"] });
       toast({
         title: "Saldos atualizados",
-        description: "Os saldos foram atualizados com sucesso. Intervalo mínimo de 1 minuto por wallet e 20 segundos entre wallets.",
+        description:
+          "Os saldos foram atualizados com sucesso. Intervalo mínimo de 1 minuto por wallet e 20 segundos entre wallets.",
       });
     },
     onError: async () => {
@@ -149,7 +176,9 @@ export default function WalletTracker() {
 
   const deleteWalletMutation = useMutation({
     mutationFn: async (walletId: string) => {
-      return apiRequest("DELETE", `/api/wallets/${walletId}`).then(res => res.json());
+      return apiRequest("DELETE", `/api/wallets/${walletId}`).then((res) =>
+        res.json()
+      );
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: ["/api/saldo/detailed"] });
@@ -170,12 +199,16 @@ export default function WalletTracker() {
 
   const refreshWalletMutation = useMutation({
     mutationFn: async (walletName: string) => {
-      setUpdatingWallets(prev => new Set([...Array.from(prev), walletName]));
+      setUpdatingWallets((prev) => new Set([...Array.from(prev), walletName]));
       try {
-        const response = await apiRequest("POST", `/api/saldo/refresh/${encodeURIComponent(walletName)}`, {});
+        const response = await apiRequest(
+          "POST",
+          `/api/saldo/refresh/${encodeURIComponent(walletName)}`,
+          {}
+        );
         return response.json();
       } finally {
-        setUpdatingWallets(prev => {
+        setUpdatingWallets((prev) => {
           const newSet = new Set(Array.from(prev));
           newSet.delete(walletName);
           return newSet;
@@ -207,6 +240,34 @@ export default function WalletTracker() {
     },
   });
 
+  const formatBalance = (balance: string) => {
+    // Se o valor contém "$" ou vírgula (formato USD), retornar sem formatação
+    // pois o backend deveria ter convertido para BRL
+    if (
+      balance === "Loading..." ||
+      balance === "Carregando..." ||
+      balance === "Aguardando" ||
+      balance === "Indisponível"
+    ) {
+      return balance;
+    }
+
+    // Remover símbolos de moeda e separadores
+    const numericValue = parseFloat(balance.replace(/[^\d.-]/g, ""));
+
+    if (isNaN(numericValue)) {
+      return balance; // Retornar original se não conseguir parsear
+    }
+
+    // Formatar como moeda brasileira
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString("pt-BR", {
@@ -225,12 +286,12 @@ export default function WalletTracker() {
   };
 
   const getStatusDisplay = (wallet: WalletBalance) => {
-    if (wallet.status === 'success') {
-      return { label: 'Atualizado', variant: 'outline' as const };
-    } else if (wallet.status === 'temporary_error') {
-      return { label: 'Valor anterior', variant: 'secondary' as const };
+    if (wallet.status === "success") {
+      return { label: "Atualizado", variant: "outline" as const };
+    } else if (wallet.status === "temporary_error") {
+      return { label: "Valor anterior", variant: "secondary" as const };
     } else {
-      return { label: 'Indisponível', variant: 'destructive' as const };
+      return { label: "Indisponível", variant: "destructive" as const };
     }
   };
 
@@ -246,7 +307,11 @@ export default function WalletTracker() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <p className="text-destructive">Erro ao carregar saldos</p>
-        <Button onClick={() => queryClient.refetchQueries({ queryKey: ["/api/saldo/detailed"] })}>
+        <Button
+          onClick={() =>
+            queryClient.refetchQueries({ queryKey: ["/api/saldo/detailed"] })
+          }
+        >
           Tentar novamente
         </Button>
       </div>
@@ -257,8 +322,12 @@ export default function WalletTracker() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-title">Wallet Tracker</h1>
-          <p className="text-muted-foreground">Monitore saldos de suas wallets em múltiplas plataformas</p>
+          <h1 className="text-2xl font-bold" data-testid="text-title">
+            Wallet Tracker
+          </h1>
+          <p className="text-muted-foreground">
+            Monitore saldos de suas wallets em múltiplas plataformas
+          </p>
         </div>
         <Button
           onClick={() => refreshMutation.mutate()}
@@ -276,113 +345,148 @@ export default function WalletTracker() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-        {balances?.filter(wallet => wallet.name !== 'SOL-madnessmain' && wallet.name !== 'SOL-madnesstwo').map((wallet) => (
-          <Card key={wallet.id || wallet.name} data-testid={`card-wallet-${wallet.id || wallet.name}`}>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Wallet className="h-4 w-4" />
-                {wallet.name}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <a
-                  href={wallet.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground"
-                  data-testid={`link-wallet-${wallet.id || wallet.name}`}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-                {/* Botão de histórico sempre ativo, independente do estado de carregamento */}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setSelectedWalletForHistory(wallet.name)}
-                  data-testid={`button-view-history-${wallet.id || wallet.name}`}
-                  title="Ver histórico"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                </Button>
-                {wallet.id && (
-                  <>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => refreshWalletMutation.mutate(wallet.name)}
-                      disabled={updatingWallets.has(wallet.name)}
-                      data-testid={`button-refresh-wallet-${wallet.id}`}
-                      title="Atualizar esta wallet"
-                    >
-                      {updatingWallets.has(wallet.name) ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteWalletMutation.mutate(wallet.id!)}
-                      disabled={deleteWalletMutation.isPending}
-                      data-testid={`button-delete-wallet-${wallet.id}`}
-                    >
-                      {deleteWalletMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-2xl font-bold" data-testid={`text-balance-${wallet.id || wallet.name}`}>
-                  {hiddenBalances.has(wallet.name) ? '***' : wallet.balance}
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => toggleBalanceVisibility(wallet.name)}
-                  data-testid={`button-toggle-balance-${wallet.id || wallet.name}`}
-                  title={hiddenBalances.has(wallet.name) ? 'Mostrar saldo' : 'Ocultar saldo'}
-                >
-                  {hiddenBalances.has(wallet.name) ? (
-                    <Eye className="h-4 w-4" />
-                  ) : (
-                    <EyeOff className="h-4 w-4" />
+        {balances
+          ?.filter(
+            (wallet) =>
+              wallet.name !== "SOL-madnessmain" &&
+              wallet.name !== "SOL-madnesstwo"
+          )
+          .map((wallet) => (
+            <Card
+              key={wallet.id || wallet.name}
+              data-testid={`card-wallet-${wallet.id || wallet.name}`}
+            >
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  {wallet.name}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={wallet.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                    data-testid={`link-wallet-${wallet.id || wallet.name}`}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                  {/* Botão de histórico sempre ativo, independente do estado de carregamento */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedWalletForHistory(wallet.name)}
+                    data-testid={`button-view-history-${
+                      wallet.id || wallet.name
+                    }`}
+                    title="Ver histórico"
+                  >
+                    <TrendingUp className="h-4 w-4" />
+                  </Button>
+                  {wallet.id && (
+                    <>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() =>
+                          refreshWalletMutation.mutate(wallet.name)
+                        }
+                        disabled={updatingWallets.has(wallet.name)}
+                        data-testid={`button-refresh-wallet-${wallet.id}`}
+                        title="Atualizar esta wallet"
+                      >
+                        {updatingWallets.has(wallet.name) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteWalletMutation.mutate(wallet.id!)}
+                        disabled={deleteWalletMutation.isPending}
+                        data-testid={`button-delete-wallet-${wallet.id}`}
+                      >
+                        {deleteWalletMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        )}
+                      </Button>
+                    </>
                   )}
-                </Button>
-              </div>
-              <div className="flex items-center justify-between gap-2 mt-2">
-                <span className="text-xs text-muted-foreground">
-                  {getPlatformName(wallet.link)}
-                </span>
-                {wallet.balance === "Loading..." || wallet.balance === "Carregando..." ? (
-                  <Badge variant="secondary" className="text-xs">Carregando</Badge>
-                ) : (
-                  <Badge variant={getStatusDisplay(wallet).variant} className="text-xs">
-                    {getStatusDisplay(wallet).label}
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Última atualização: {formatDate(wallet.lastUpdated)}
-              </p>
-              {wallet.error && (
-                <p className="text-xs text-destructive mt-1">
-                  {wallet.error}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between gap-2">
+                  <div
+                    className="text-2xl font-bold"
+                    data-testid={`text-balance-${wallet.id || wallet.name}`}
+                  >
+                    {hiddenBalances.has(wallet.name)
+                      ? "***"
+                      : formatBalance(wallet.balance)}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => toggleBalanceVisibility(wallet.name)}
+                    data-testid={`button-toggle-balance-${
+                      wallet.id || wallet.name
+                    }`}
+                    title={
+                      hiddenBalances.has(wallet.name)
+                        ? "Mostrar saldo"
+                        : "Ocultar saldo"
+                    }
+                  >
+                    {hiddenBalances.has(wallet.name) ? (
+                      <Eye className="h-4 w-4" />
+                    ) : (
+                      <EyeOff className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <span className="text-xs text-muted-foreground">
+                    {getPlatformName(wallet.link)}
+                  </span>
+                  {wallet.balance === "Loading..." ||
+                  wallet.balance === "Carregando..." ? (
+                    <Badge variant="secondary" className="text-xs">
+                      Carregando
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant={getStatusDisplay(wallet).variant}
+                      className="text-xs"
+                    >
+                      {getStatusDisplay(wallet).label}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Última atualização: {formatDate(wallet.lastUpdated)}
                 </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                {wallet.error && (
+                  <p className="text-xs text-destructive mt-1">
+                    {wallet.error}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
 
         {isAddingWallet && (
-          <Card className="border-2 border-dashed" data-testid="card-add-wallet">
+          <Card
+            className="border-2 border-dashed"
+            data-testid="card-add-wallet"
+          >
             <CardHeader className="space-y-0 pb-3">
-              <CardTitle className="text-sm font-medium">Adicionar Wallet</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Adicionar Wallet
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Input
@@ -402,9 +506,9 @@ export default function WalletTracker() {
                   size="sm"
                   onClick={() => {
                     if (newWalletName && newWalletLink) {
-                      addWalletMutation.mutate({ 
-                        name: newWalletName, 
-                        link: newWalletLink
+                      addWalletMutation.mutate({
+                        name: newWalletName,
+                        link: newWalletLink,
                       });
                     } else {
                       toast({
@@ -417,7 +521,9 @@ export default function WalletTracker() {
                   disabled={addWalletMutation.isPending}
                   data-testid="button-save-wallet"
                 >
-                  {addWalletMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {addWalletMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Salvar
                 </Button>
                 <Button
@@ -454,16 +560,22 @@ export default function WalletTracker() {
       </div>
 
       <div className="mt-6 text-center text-sm text-muted-foreground">
-        Os saldos são obtidos via scraping de múltiplas plataformas usando Puppeteer. 
-        A atualização automática ocorre a cada 1 hora com intervalo de 1 minuto por wallet e 20 segundos entre wallets diferentes.
-        Histórico completo salvo no cache do backend.
+        Os saldos são obtidos via scraping de múltiplas plataformas usando
+        Puppeteer. A atualização automática ocorre a cada 1 hora com intervalo
+        de 1 minuto por wallet e 20 segundos entre wallets diferentes. Histórico
+        completo salvo no cache do backend.
       </div>
 
       {/* History Dialog */}
-      <Dialog open={!!selectedWalletForHistory} onOpenChange={(open) => !open && setSelectedWalletForHistory(null)}>
+      <Dialog
+        open={!!selectedWalletForHistory}
+        onOpenChange={(open) => !open && setSelectedWalletForHistory(null)}
+      >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{selectedWalletForHistory} - Histórico e Estatísticas</DialogTitle>
+            <DialogTitle>
+              {selectedWalletForHistory} - Histórico e Estatísticas
+            </DialogTitle>
             <DialogDescription>
               Visualize o histórico de saldos e tendências
             </DialogDescription>
@@ -473,22 +585,27 @@ export default function WalletTracker() {
             <div className="grid grid-cols-2 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Atual</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Saldo Atual
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${stats.currentBalance.toFixed(2)}</div>
+                  <div className="text-2xl font-bold">
+                    ${stats.currentBalance.toFixed(2)}
+                  </div>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {stats.change >= 0 ? 'Ganho' : 'Perda'}
+                    {stats.change >= 0 ? "Ganho" : "Perda"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex items-center gap-2">
                   <div className="text-2xl font-bold">
-                    {stats.change >= 0 ? '+' : ''}{stats.change.toFixed(2)}
+                    {stats.change >= 0 ? "+" : ""}
+                    {stats.change.toFixed(2)}
                   </div>
                   {stats.change >= 0 ? (
                     <TrendingUp className="h-5 w-5 text-green-500" />
@@ -500,7 +617,9 @@ export default function WalletTracker() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Mínimo</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Mínimo
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-lg">${stats.minBalance.toFixed(2)}</div>
@@ -509,7 +628,9 @@ export default function WalletTracker() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Máximo</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Máximo
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-lg">${stats.maxBalance.toFixed(2)}</div>
@@ -518,7 +639,9 @@ export default function WalletTracker() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Média</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Média
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-lg">${stats.avgBalance.toFixed(2)}</div>
@@ -527,11 +650,20 @@ export default function WalletTracker() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Variação</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Variação
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-lg font-semibold ${stats.changePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {stats.changePercent >= 0 ? '+' : ''}{stats.changePercent.toFixed(2)}%
+                  <div
+                    className={`text-lg font-semibold ${
+                      stats.changePercent >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {stats.changePercent >= 0 ? "+" : ""}
+                    {stats.changePercent.toFixed(2)}%
                   </div>
                 </CardContent>
               </Card>
@@ -541,13 +673,19 @@ export default function WalletTracker() {
           <div className="space-y-2">
             <h3 className="font-semibold">Últimas 20 Atualizações</h3>
             {history?.slice(0, 20).map((entry, idx) => (
-              <div key={idx} className="flex justify-between items-center p-2 border rounded text-sm">
+              <div
+                key={idx}
+                className="flex justify-between items-center p-2 border rounded text-sm"
+              >
                 <span className="text-muted-foreground">
-                  {new Date(entry.timestamp).toLocaleString('pt-BR')}
+                  {new Date(entry.timestamp).toLocaleString("pt-BR")}
                 </span>
                 <span className="font-medium">{entry.balance}</span>
-                <Badge variant={entry.status === 'success' ? 'outline' : 'secondary'} className="text-xs">
-                  {entry.status === 'success' ? '✓' : '◐'}
+                <Badge
+                  variant={entry.status === "success" ? "outline" : "secondary"}
+                  className="text-xs"
+                >
+                  {entry.status === "success" ? "✓" : "◐"}
                 </Badge>
               </div>
             ))}

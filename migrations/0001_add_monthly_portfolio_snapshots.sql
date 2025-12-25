@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS monthly_portfolio_snapshots (
   total_value REAL NOT NULL,
   date TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   is_locked INTEGER NOT NULL DEFAULT 0,
   UNIQUE(user_id, year, month)
 );

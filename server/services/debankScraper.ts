@@ -1190,7 +1190,7 @@ export async function getDetailedBalances(): Promise<WalletBalance[]> {
       // Se o status NÃO é success, buscar último saldo válido do histórico
       if (wallet.status !== "success") {
         // 1. Buscar último registro válido do histórico (arquivo wallet-cache.json)
-        const lastValidEntry = getLastValidBalance(wallet.name);
+        const lastValidEntry = await getLastValidBalance(wallet.name);
 
         if (lastValidEntry) {
           console.log(

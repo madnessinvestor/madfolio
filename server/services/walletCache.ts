@@ -1,12 +1,12 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 
 interface CacheEntry {
   walletName: string;
   balance: string;
   platform: string;
   timestamp: string;
-  status: 'success' | 'temporary_error' | 'unavailable';
+  status: "success" | "temporary_error" | "unavailable";
 }
 
 interface CacheHistory {
@@ -14,17 +14,17 @@ interface CacheHistory {
   entries: CacheEntry[];
 }
 
-const cacheFilePath = path.join(process.cwd(), 'wallet-cache.json');
+const cacheFilePath = path.join(process.cwd(), "wallet-cache.json");
 
 // Initialize cache file if it doesn't exist
 function initializeCacheFile(): void {
   if (!fs.existsSync(cacheFilePath)) {
     const initialCache: CacheHistory = {
       lastUpdated: new Date().toISOString(),
-      entries: []
+      entries: [],
     };
     fs.writeFileSync(cacheFilePath, JSON.stringify(initialCache, null, 2));
-    console.log('[Cache] Initialized wallet cache file');
+    console.log("[Cache] Initialized wallet cache file");
   }
 }
 
@@ -34,10 +34,10 @@ export function readCache(): CacheHistory {
     if (!fs.existsSync(cacheFilePath)) {
       initializeCacheFile();
     }
-    const data = fs.readFileSync(cacheFilePath, 'utf-8');
+    const data = fs.readFileSync(cacheFilePath, "utf-8");
     return JSON.parse(data);
   } catch (error) {
-    console.error('[Cache] Error reading cache:', error);
+    console.error("[Cache] Error reading cache:", error);
     return { lastUpdated: new Date().toISOString(), entries: [] };
   }
 }
@@ -47,7 +47,7 @@ function writeCache(cache: CacheHistory): void {
   try {
     fs.writeFileSync(cacheFilePath, JSON.stringify(cache, null, 2));
   } catch (error) {
-    console.error('[Cache] Error writing cache:', error);
+    console.error("[Cache] Error writing cache:", error);
   }
 }
 
@@ -56,49 +56,55 @@ export function addCacheEntry(
   walletName: string,
   balance: string,
   platform: string,
-  status: 'success' | 'temporary_error' | 'unavailable'
+  status: "success" | "temporary_error" | "unavailable"
 ): void {
   // 🚨 REGRA ABSOLUTA: Apenas valores numéricos válidos podem ser salvos no histórico
   // ❌ NUNCA salvar: "Indisponível", "Carregando", "Loading", "Falha", "Timeout", ou qualquer string
-  
+
   // 1. Bloquear strings conhecidas de estados inválidos
-  const isInvalidString = 
-    balance === 'Indisponível' || 
-    balance === 'Carregando...' || 
-    balance === 'Loading...' ||
-    balance === 'Carregando' ||
-    balance === 'Falha' ||
-    balance === 'Timeout' ||
-    balance === '' ||
-    status === 'unavailable' ||
-    status === 'temporary_error'; // ❌ temporary_error também NÃO deve salvar no histórico
-  
+  const isInvalidString =
+    balance === "Indisponível" ||
+    balance === "Carregando..." ||
+    balance === "Loading..." ||
+    balance === "Carregando" ||
+    balance === "Falha" ||
+    balance === "Timeout" ||
+    balance === "" ||
+    status === "unavailable" ||
+    status === "temporary_error"; // ❌ temporary_error também NÃO deve salvar no histórico
+
   if (isInvalidString) {
-    console.log(`[Cache] ❌ Blocked invalid string for ${walletName}: "${balance}" (status: ${status}) - NOT saving to history`);
+    console.log(
+      `[Cache] ❌ Blocked invalid string for ${walletName}: "${balance}" (status: ${status}) - NOT saving to history`
+    );
     return; // Não salva no histórico
   }
-  
+
   // 2. Validar que o valor é numérico válido e finito
-  const numericValue = parseFloat(balance.replace(/[$,]/g, ''));
+  const numericValue = parseFloat(balance.replace(/[$,]/g, ""));
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    console.log(`[Cache] ❌ Blocked non-numeric or invalid value for ${walletName}: "${balance}" (parsed: ${numericValue}) - NOT saving to history`);
+    console.log(
+      `[Cache] ❌ Blocked non-numeric or invalid value for ${walletName}: "${balance}" (parsed: ${numericValue}) - NOT saving to history`
+    );
     return; // Não salva valores inválidos
   }
-  
+
   // 3. Status DEVE ser 'success' para salvar no histórico
-  if (status !== 'success') {
-    console.log(`[Cache] ❌ Blocked non-success status for ${walletName}: status="${status}" - NOT saving to history`);
+  if (status !== "success") {
+    console.log(
+      `[Cache] ❌ Blocked non-success status for ${walletName}: status="${status}" - NOT saving to history`
+    );
     return;
   }
-  
+
   const cache = readCache();
-  
+
   const entry: CacheEntry = {
     walletName,
     balance,
     platform,
     timestamp: new Date().toISOString(),
-    status
+    status,
   };
 
   cache.entries.push(entry);
@@ -107,24 +113,31 @@ export function addCacheEntry(
   // Keep only last 20 entries per wallet (persistência das últimas 20 atualizações)
   const walletEntries = cache.entries
     .map((e, idx) => ({ entry: e, originalIndex: idx }))
-    .filter(item => item.entry.walletName === walletName);
-  
+    .filter((item) => item.entry.walletName === walletName);
+
   if (walletEntries.length > 20) {
     // Remove as entradas mais antigas desta wallet (mantém apenas as últimas 20)
     const entriesToRemove = walletEntries.slice(0, walletEntries.length - 20);
-    const indicesToRemove = new Set(entriesToRemove.map(item => item.originalIndex));
+    const indicesToRemove = new Set(
+      entriesToRemove.map((item) => item.originalIndex)
+    );
     cache.entries = cache.entries.filter((_, idx) => !indicesToRemove.has(idx));
   }
 
   writeCache(cache);
-  console.log(`[Cache] ✓ Added valid entry for ${walletName}: ${balance} (keeping last 20)`);
+  console.log(
+    `[Cache] ✓ Added valid entry for ${walletName}: ${balance} (keeping last 20)`
+  );
 }
 
 // Get wallet history
-export function getWalletHistory(walletName: string, limit: number = 100): CacheEntry[] {
+export function getWalletHistory(
+  walletName: string,
+  limit: number = 100
+): CacheEntry[] {
   const cache = readCache();
   return cache.entries
-    .filter(e => e.walletName === walletName)
+    .filter((e) => e.walletName === walletName)
     .slice(-limit)
     .reverse();
 }
@@ -153,7 +166,7 @@ export function getLatestByWallet(): Record<string, CacheEntry> {
 export function getLastHighestValue(walletName: string): string | null {
   const cache = readCache();
   const entries = cache.entries
-    .filter(e => e.walletName === walletName && e.status === 'success')
+    .filter((e) => e.walletName === walletName && e.status === "success")
     .reverse(); // Most recent first
 
   if (entries.length === 0) {
@@ -162,19 +175,19 @@ export function getLastHighestValue(walletName: string): string | null {
 
   // Extract numeric values from successful entries
   const valuesWithEntry = entries
-    .map(e => {
-      const num = parseFloat(e.balance.replace(/[$,]/g, ''));
+    .map((e) => {
+      const num = parseFloat(e.balance.replace(/[$,]/g, ""));
       return { value: isNaN(num) ? null : num, balance: e.balance };
     })
-    .filter(v => v.value !== null && v.value > 0);
+    .filter((v) => v.value !== null && v.value > 0);
 
   if (valuesWithEntry.length === 0) {
     return null;
   }
 
   // Find the highest value
-  const highest = valuesWithEntry.reduce((max, current) => 
-    (current.value! > max.value!) ? current : max
+  const highest = valuesWithEntry.reduce((max, current) =>
+    current.value! > max.value! ? current : max
   );
 
   return highest.balance;
@@ -182,20 +195,61 @@ export function getLastHighestValue(walletName: string): string | null {
 
 // Get the last valid balance from history (most recent valid entry)
 // This is the SOURCE OF TRUTH when scraping fails
-export function getLastValidBalance(walletName: string): CacheEntry | null {
+export async function getLastValidBalance(
+  walletName: string
+): Promise<CacheEntry | null> {
   const cache = readCache();
-  
+
   // Find most recent successful entry
   const entries = cache.entries
-    .filter(e => e.walletName === walletName && e.status === 'success')
+    .filter((e) => e.walletName === walletName && e.status === "success")
     .reverse(); // Most recent first
-  
+
   if (entries.length === 0) {
     return null;
   }
-  
-  // Return the most recent valid entry
-  return entries[0];
+
+  // Get the most recent valid entry
+  const entry = entries[0];
+
+  // If balance contains "$" or comma, it's in USD and needs conversion
+  if (entry.balance.includes("$") || entry.balance.includes(",")) {
+    try {
+      // Import exchange rate service
+      const { getExchangeRate } = await import("./exchangeRate");
+
+      // Parse USD value
+      const usdValue = parseFloat(entry.balance.replace(/[$,]/g, ""));
+
+      if (!isNaN(usdValue) && usdValue > 0) {
+        // Get current exchange rate
+        const exchangeRate = await getExchangeRate("USD");
+
+        // Convert to BRL
+        const brlValue = usdValue * exchangeRate;
+
+        console.log(
+          `[Cache] Converting ${walletName} from ${
+            entry.balance
+          } USD → ${brlValue.toFixed(2)} BRL (rate: ${exchangeRate})`
+        );
+
+        // Return entry with converted balance
+        return {
+          ...entry,
+          balance: brlValue.toFixed(2),
+        };
+      }
+    } catch (error) {
+      console.error(
+        `[Cache] Error converting USD to BRL for ${walletName}:`,
+        error
+      );
+    }
+  }
+
+  // Return the entry as is (already in BRL or conversion failed)
+  return entry;
 }
 
 /**
@@ -208,22 +262,26 @@ export function getLastValidBalance(walletName: string): CacheEntry | null {
 export function createInitialHistoryEntry(
   walletName: string,
   initialBalance: string,
-  platform: string = 'manual'
+  platform: string = "manual"
 ): void {
   // Only create if no history exists
   const existing = getLastValidBalance(walletName);
   if (existing) {
-    console.log(`[Cache] Wallet ${walletName} already has history, skipping initial entry`);
+    console.log(
+      `[Cache] Wallet ${walletName} already has history, skipping initial entry`
+    );
     return;
   }
-  
+
   // Validate that we have a numeric value
-  const numericValue = parseFloat(initialBalance.replace(/[$,]/g, ''));
+  const numericValue = parseFloat(initialBalance.replace(/[$,]/g, ""));
   if (!Number.isFinite(numericValue) || numericValue < 0) {
-    console.log(`[Cache] ⚠️ Cannot create initial history for ${walletName} with invalid value: ${initialBalance}`);
+    console.log(
+      `[Cache] ⚠️ Cannot create initial history for ${walletName} with invalid value: ${initialBalance}`
+    );
     return;
   }
-  
+
   // Create initial entry
   const cache = readCache();
   const entry: CacheEntry = {
@@ -231,20 +289,22 @@ export function createInitialHistoryEntry(
     balance: initialBalance,
     platform,
     timestamp: new Date().toISOString(),
-    status: 'success'
+    status: "success",
   };
-  
+
   cache.entries.push(entry);
   cache.lastUpdated = new Date().toISOString();
   writeCache(cache);
-  
-  console.log(`[Cache] ✓ Created initial history entry for ${walletName}: ${initialBalance}`);
+
+  console.log(
+    `[Cache] ✓ Created initial history entry for ${walletName}: ${initialBalance}`
+  );
 }
 
 // Get wallet statistics
 export function getWalletStats(walletName: string) {
   const cache = readCache();
-  const entries = cache.entries.filter(e => e.walletName === walletName);
+  const entries = cache.entries.filter((e) => e.walletName === walletName);
 
   if (entries.length === 0) {
     return null;
@@ -252,8 +312,8 @@ export function getWalletStats(walletName: string) {
 
   // Extract numeric values
   const values = entries
-    .map(e => {
-      const num = parseFloat(e.balance.replace(/[$,]/g, ''));
+    .map((e) => {
+      const num = parseFloat(e.balance.replace(/[$,]/g, ""));
       return isNaN(num) ? null : num;
     })
     .filter((v): v is number => v !== null);
@@ -279,7 +339,7 @@ export function getWalletStats(walletName: string) {
     changePercent,
     totalEntries: entries.length,
     firstEntry: entries[0].timestamp,
-    lastEntry: entries[entries.length - 1].timestamp
+    lastEntry: entries[entries.length - 1].timestamp,
   };
 }
 
