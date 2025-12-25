@@ -96,7 +96,7 @@ export async function scrapeDebankEVM(
   walletLink: string,
   timeoutMs: number = 120000
 ): Promise<ScraperResult> {
-  console.log('[DeBank] 🚀 Iniciando scrape:', walletLink);
+  console.log('[DeBank] 🚀 Iniciando scrape DOM direto:', walletLink);
   
   if (!browser) {
     return { value: null, success: false, platform: 'debank', error: 'Browser não disponível' };
@@ -105,34 +105,11 @@ export async function scrapeDebankEVM(
   const page = await browser.newPage();
   
   try {
-    console.log('[DeBank] Starting EVM scraper');
+    console.log('[DeBank] Starting EVM DOM scraper (API desabilitada)');
     
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
     
-    // Try API first (mais rápido)
-    const addressMatch = walletLink.match(/0x[a-fA-F0-9]{40}/);
-    if (addressMatch) {
-      const address = addressMatch[0];
-      try {
-        console.log('[DeBank] 🔗 Tentando API primeiro');
-        const apiResponse = await fetch(`https://api.debank.com/v1/user/total_balance?id=${address}`, {
-          headers: { "Accept": "application/json" }
-        });
-        
-        if (apiResponse.ok) {
-          const data = await apiResponse.json() as any;
-          const balanceUSD = data.total_usd_value || 0;
-          const formatted = `$${balanceUSD.toFixed(2)}`;
-          console.log('[DeBank] ✅ API success:', formatted);
-          await page.close();
-          return { value: formatted, success: true, platform: 'debank' };
-        }
-      } catch (apiError) {
-        console.log('[DeBank] ⚠️ API falhou, tentando DOM scraping');
-      }
-    }
-    
-    // DOM scraping fallback
+    // DOM scraping direto (SEM API)
     console.log('[DeBank] 🌐 Navegando para página principal...');
     await page.goto(walletLink, { waitUntil: 'networkidle2', timeout: 50000 }).catch(e => 
       console.log('[DeBank] Navigation warning: ' + e.message)
