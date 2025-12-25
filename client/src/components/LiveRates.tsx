@@ -1,0 +1,73 @@
+import { useQuery } from "@tanstack/react-query";
+import { TrendingUp } from "lucide-react";
+
+interface ExchangeRates {
+  USD: number;
+  EUR: number;
+  BRL: number;
+}
+
+interface CryptoPrice {
+  bitcoin?: { brl: number };
+  ethereum?: { brl: number };
+}
+
+export function LiveRates() {
+  // Fetch exchange rates (USD, EUR)
+  const { data: exchangeRates } = useQuery<ExchangeRates>({
+    queryKey: ["/api/exchange-rates"],
+    refetchInterval: 10 * 60 * 1000, // 10 minutos
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // Fetch crypto prices (BTC, ETH)
+  const { data: cryptoPrices } = useQuery<CryptoPrice>({
+    queryKey: ["crypto-prices"],
+    queryFn: async () => {
+      const response = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=brl"
+      );
+      if (!response.ok) throw new Error("Failed to fetch crypto prices");
+      return response.json();
+    },
+    refetchInterval: 10 * 60 * 1000, // 10 minutos
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const formatRate = (value: number | undefined, decimals: number = 2): string => {
+    if (!value) return "...";
+    return value.toLocaleString("pt-BR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  };
+
+  const usdRate = exchangeRates?.USD ? 1 / exchangeRates.USD : undefined;
+  const eurRate = exchangeRates?.EUR ? 1 / exchangeRates.EUR : undefined;
+  const btcRate = cryptoPrices?.bitcoin?.brl ? 1 / cryptoPrices.bitcoin.brl : undefined;
+  const ethRate = cryptoPrices?.ethereum?.brl ? 1 / cryptoPrices.ethereum.brl : undefined;
+
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted-foreground border-l pl-3">
+      <TrendingUp className="h-4 w-4" />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <span className="font-medium">USD:</span>
+          <span>{formatRate(usdRate)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="font-medium">EUR:</span>
+          <span>{formatRate(eurRate)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="font-medium">BTC:</span>
+          <span>{formatRate(btcRate, 8)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="font-medium">ETH:</span>
+          <span>{formatRate(ethRate, 6)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}

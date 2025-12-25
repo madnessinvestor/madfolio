@@ -8,6 +8,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CurrencySwitcher, type DisplayCurrency } from "@/components/CurrencySwitcher";
+import { LiveRates } from "@/components/LiveRates";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Save, Check } from "lucide-react";
@@ -109,6 +110,7 @@ function MainApp() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-3">
               <CurrencySwitcher value={displayCurrency} onChange={setDisplayCurrency} />
+              <LiveRates />
               <button
                 onClick={() => setIsBalanceHidden(!isBalanceHidden)}
                 className="text-muted-foreground hover:text-foreground transition-colors p-2 rounded-full hover:bg-accent"
