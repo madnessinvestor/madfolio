@@ -10,6 +10,7 @@ interface ExchangeRates {
 interface CryptoPrice {
   bitcoin?: { brl: number };
   ethereum?: { brl: number };
+  solana?: { brl: number };
 }
 
 export function LiveRates() {
@@ -20,12 +21,12 @@ export function LiveRates() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Fetch crypto prices (BTC, ETH)
+  // Fetch crypto prices (BTC, ETH, SOL)
   const { data: cryptoPrices } = useQuery<CryptoPrice>({
     queryKey: ["crypto-prices"],
     queryFn: async () => {
       const response = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=brl"
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=brl"
       );
       if (!response.ok) throw new Error("Failed to fetch crypto prices");
       return response.json();
@@ -49,6 +50,7 @@ export function LiveRates() {
   const eurRate = exchangeRates?.EUR;
   const btcRate = cryptoPrices?.bitcoin?.brl;
   const ethRate = cryptoPrices?.ethereum?.brl;
+  const solRate = cryptoPrices?.solana?.brl;
 
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground border-l pl-3">
@@ -73,6 +75,11 @@ export function LiveRates() {
           <span>Ξ</span>
           <span className="font-medium">ETH:</span>
           <span>{formatRate(ethRate, 0)}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span>◎</span>
+          <span className="font-medium">SOL:</span>
+          <span>{formatRate(solRate)}</span>
         </div>
       </div>
     </div>
