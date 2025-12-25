@@ -2,8 +2,8 @@
   {
     "id": "3c6def059126280b714103bbc04a3d31",
     "name": "APTOS-madness",
-    "balance": "$15.75",
-    "lastUpdated": "2025-12-25T16:57:49.673Z",
+    "balance": "$15.63",
+    "lastUpdated": "2025-12-25T18:25:37.925Z",
     "status": "success",
     "platform": "unknown"
   },
@@ -35,15 +35,15 @@
     "id": "c30e5b4adbc2792ef854904244aeaa86",
     "name": "SEI-madness",
     "balance": "$34.98",
-    "lastUpdated": "2025-12-25T18:25:06.743Z",
-    "status": "temporary_error",
+    "lastUpdated": "2025-12-25T18:14:23.270Z",
+    "status": "success",
     "platform": "unknown"
   },
   {
     "id": "9a8e628e9767ef655706ffe96dbb60f6",
     "name": "STARKNET-madness",
-    "balance": "$160.68",
-    "lastUpdated": "2025-12-25T18:25:34.088Z",
+    "balance": "$160.78",
+    "lastUpdated": "2025-12-25T18:11:36.194Z",
     "status": "success",
     "platform": "unknown"
   }
