@@ -10,8 +10,8 @@
   {
     "id": "4a33f86f754f33c0323cec9a0713d9f3",
     "name": "EVM-madnessmain",
-    "balance": "318873.65",
-    "lastUpdated": "2026-01-03T19:57:19.567Z",
+    "balance": "319032.28",
+    "lastUpdated": "2026-01-03T19:47:02.346Z",
     "status": "success",
     "platform": "unknown"
   },
@@ -19,7 +19,7 @@
     "id": "e6c3ef467cf9ef61a325539b74c70736",
     "name": "EVM-madnesstrezor",
     "balance": "59535.48",
-    "lastUpdated": "2026-01-03T19:57:26.250Z",
+    "lastUpdated": "2026-01-03T19:48:07.065Z",
     "status": "success",
     "platform": "unknown"
   },
@@ -27,7 +27,7 @@
     "id": "c3b8222449c8bf85a6d7d1305f003452",
     "name": "EVM-madnesstwo",
     "balance": "92.99",
-    "lastUpdated": "2026-01-03T19:57:22.772Z",
+    "lastUpdated": "2026-01-03T19:49:02.280Z",
     "status": "success",
     "platform": "unknown"
   },
@@ -42,9 +42,9 @@
   {
     "id": "9a8e628e9767ef655706ffe96dbb60f6",
     "name": "STARKNET-madness",
-    "balance": "894.45",
-    "lastUpdated": "2026-01-03T19:56:54.082Z",
-    "status": "temporary_error",
+    "balance": "893.91",
+    "lastUpdated": "2026-01-03T19:57:29.593Z",
+    "status": "success",
     "platform": "unknown"
   }
 ]
