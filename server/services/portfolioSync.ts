@@ -14,6 +14,10 @@ import { storage } from "../storage";
 import { fetchExchangeRates } from "./exchangeRate";
 import { getDetailedBalances } from "./debankScraper";
 
+// Throttle: evitar sincronizações muito frequentes
+let lastSyncTime = 0;
+const SYNC_COOLDOWN_MS = 300000; // 5 minutos entre sincronizações
+
 /**
  * Calcula o valor total consolidado de todos os investimentos
  */
@@ -116,6 +120,16 @@ export async function syncPortfolioEvolution(
   userId: string = "default-user"
 ): Promise<void> {
   try {
+    // Throttle: verificar se já sincronizou recentemente
+    const now = Date.now();
+    if (now - lastSyncTime < SYNC_COOLDOWN_MS) {
+      console.log(
+        `[Portfolio Sync] ⏸️  Sync skipped (cooldown: ${Math.round((SYNC_COOLDOWN_MS - (now - lastSyncTime)) / 1000)}s remaining)`
+      );
+      return;
+    }
+    lastSyncTime = now;
+
     console.log(`[Portfolio Sync] ========================================`);
     console.log(`[Portfolio Sync] Starting automatic portfolio evolution sync`);
 

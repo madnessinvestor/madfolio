@@ -162,10 +162,18 @@ export async function updateAssetPrice(assetId: string): Promise<number | null> 
     const price = await fetchAssetPrice(asset.symbol, asset.market);
     if (price === null) return null;
 
-    await db.update(assets).set({
-      currentPrice: price,
-      lastPriceUpdate: new Date(),
-    }).where(eq(assets.id, assetId));
+    // Só atualiza se o preço mudou mais de 0.1% para reduzir escritas no banco
+    const oldPrice = asset.currentPrice || 0;
+    const priceChangePercent = Math.abs((price - oldPrice) / oldPrice * 100);
+    
+    if (priceChangePercent > 0.1 || !asset.lastPriceUpdate) {
+      await db.update(assets).set({
+        currentPrice: price,
+        lastPriceUpdate: new Date(),
+      }).where(eq(assets.id, assetId));
+      
+      console.log(`[Asset Update] Updated asset ${asset.symbol} from ${oldPrice.toFixed(2)} to ${price.toFixed(2)} BRL`);
+    }
 
     return price;
   } catch (error) {
@@ -180,7 +188,8 @@ export async function updateAllAssetPrices(): Promise<void> {
     
     for (const asset of allAssets) {
       await updateAssetPrice(asset.id);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Aumentar delay entre atualizações para reduzir carga
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
     // Sync portfolio evolution after updating all prices
@@ -197,7 +206,7 @@ export async function updateAllAssetPrices(): Promise<void> {
 
 let priceUpdateInterval: NodeJS.Timeout | null = null;
 
-export function startPriceUpdater(intervalMs: number = 5 * 60 * 1000): void {
+export function startPriceUpdater(intervalMs: number = 10 * 60 * 1000): void {
   if (priceUpdateInterval) {
     clearInterval(priceUpdateInterval);
   }

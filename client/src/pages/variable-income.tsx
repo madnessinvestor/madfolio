@@ -147,7 +147,7 @@ export default function VariableIncomePage() {
   };
 
   const handleAddSnapshot = (snapshot: Snapshot) => {
-    createSnapshotMutation.mutate(snapshot);
+    createSnapshotMutation.mutate({ ...snapshot, _manualSave: true });
     setEditingAssetId(undefined);
   };
 

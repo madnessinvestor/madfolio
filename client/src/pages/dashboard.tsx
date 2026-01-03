@@ -326,6 +326,23 @@ export default function Dashboard() {
     },
   });
 
+  // Fetch ALL monthly snapshots (all years) for evolution statement
+  const { data: allMonthlySnapshots = [] } = useQuery<
+    Array<{
+      id: string;
+      userId: string;
+      month: number;
+      year: number;
+      totalValue: number;
+      date: string;
+      isLocked: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>
+  >({
+    queryKey: ["/api/monthly-snapshots"],
+  });
+
   useEffect(() => {
     setMonthLockedStatus(monthStatus);
   }, [monthStatus]);
@@ -498,7 +515,7 @@ export default function Dashboard() {
 
       // Save all snapshots
       for (const update of updates) {
-        await apiRequest("POST", "/api/snapshots", update);
+        await apiRequest("POST", "/api/snapshots", { ...update, _manualSave: true });
       }
 
       const year = parseInt(selectedYear);
@@ -510,6 +527,15 @@ export default function Dashboard() {
           month: month + 1,
           year,
           date: monthDates[month],
+        });
+
+        // Also save to monthly snapshots for the evolution statement
+        await apiRequest("POST", "/api/monthly-snapshots", {
+          totalValue: monthTotal,
+          month: month + 1,
+          year,
+          date: monthDates[month],
+          isLocked: 1,
         });
       }
 
@@ -630,7 +656,7 @@ export default function Dashboard() {
   };
 
   const handleAddSnapshot = (snapshot: Snapshot) => {
-    createSnapshotMutation.mutate(snapshot);
+    createSnapshotMutation.mutate({ ...snapshot, _manualSave: true });
   };
 
   const totalPortfolio = summary?.totalValue || 0;
@@ -941,136 +967,92 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="overflow-y-auto" style={{ height: "550px" }}>
-              {assetsLoading || !allYearsSnapshots || !allYearsMonthStatus ? (
+              {assetsLoading || !allMonthlySnapshots ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <div className="space-y-2">
                   {(() => {
-                    // Build array of all months with their totals
-                    const allMonths: Array<{
-                      year: number;
-                      month: number;
-                      total: number;
-                      isLocked: boolean;
-                    }> = [];
+                    const monthNames = [
+                      "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+                      "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+                    ];
 
-                    [2025, 2026, 2027, 2028, 2029, 2030].forEach((year) => {
-                      const months =
-                        year === 2025
-                          ? [11]
-                          : Array.from({ length: 12 }, (_, i) => i);
-
-                      months.forEach((month) => {
-                        const yearStr = year.toString();
-                        const isLocked =
-                          allYearsMonthStatus[yearStr]?.[month] === true;
-
-                        let monthTotal = 0;
-                        if (isLocked && allYearsSnapshots[yearStr]) {
-                          Object.values(allYearsSnapshots[yearStr]).forEach(
-                            (assetSnapshots) => {
-                              const monthData = assetSnapshots[month];
-                              if (monthData?.value) {
-                                monthTotal += monthData.value;
-                              }
-                            }
-                          );
-                        }
-
-                        allMonths.push({
-                          year,
-                          month,
-                          total: monthTotal,
-                          isLocked,
-                        });
+                    // Filter only locked months and sort chronologically
+                    const lockedSnapshots = allMonthlySnapshots
+                      .filter((snap) => snap.isLocked === 1 && snap.totalValue > 0)
+                      .sort((a, b) => {
+                        if (a.year !== b.year) return a.year - b.year;
+                        return a.month - b.month;
                       });
-                    });
 
-                    return allMonths.map((current, index) => {
-                      const monthKey = `${current.year}-${current.month}`;
+                    if (lockedSnapshots.length === 0) {
+                      return (
+                        <div className="flex items-center justify-center py-12 text-muted-foreground">
+                          Nenhum mês bloqueado ainda
+                        </div>
+                      );
+                    }
 
-                      // Calculate variation from previous month
-                      let variation: number | null = null;
-                      let variationPercent: number | null = null;
-
-                      if (index > 0) {
-                        const previous = allMonths[index - 1];
-                        if (
-                          previous.isLocked &&
-                          previous.total > 0 &&
-                          current.isLocked &&
-                          current.total > 0
-                        ) {
-                          variation = current.total - previous.total;
-                          variationPercent = (variation / previous.total) * 100;
-                        }
-                      }
+                    return lockedSnapshots.map((snap, index) => {
+                      const monthName = monthNames[snap.month - 1];
+                      const prevSnap = index > 0 ? lockedSnapshots[index - 1] : null;
+                      const variation = prevSnap ? snap.totalValue - prevSnap.totalValue : 0;
+                      const variationPercent = prevSnap && prevSnap.totalValue > 0
+                        ? (variation / prevSnap.totalValue) * 100
+                        : 0;
+                      const isFirstMonth = index === 0;
 
                       return (
                         <div
-                          key={monthKey}
-                          className={`p-3 rounded-lg border ${
-                            current.isLocked && current.total > 0
-                              ? "bg-primary/5 border-primary/20"
-                              : "bg-muted/30 border-border"
-                          }`}
+                          key={snap.id}
+                          className="p-3 rounded-lg border bg-primary/5 border-primary/20"
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-medium">
-                              {monthShortNames[current.month]} {current.year}
+                              {monthName} {snap.year}
                             </span>
-                            {current.isLocked && current.total > 0 && (
-                              <Lock className="w-3 h-3 text-primary" />
-                            )}
+                            <Lock className="w-3 h-3 text-primary" />
                           </div>
-                          {current.isLocked && current.total > 0 ? (
-                            <>
-                              <div className="text-lg font-semibold text-primary mb-2">
-                                R${" "}
-                                {current.total.toLocaleString("pt-BR", {
+                          <div className="text-lg font-semibold text-primary mb-2">
+                            R${" "}
+                            {snap.totalValue.toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </div>
+                          {!isFirstMonth ? (
+                            <div className="pt-2 border-t border-border/50">
+                              <div
+                                className={`text-xs font-medium ${
+                                  variation >= 0
+                                    ? "text-green-600 dark:text-green-500"
+                                    : "text-red-600 dark:text-red-500"
+                                }`}
+                              >
+                                {variation >= 0 ? "+" : ""}R${" "}
+                                {Math.abs(variation).toLocaleString("pt-BR", {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}
                               </div>
-                              {variation !== null ? (
-                                <div className="pt-2 border-t border-border/50">
-                                  <div
-                                    className={`text-xs font-medium ${
-                                      variation >= 0
-                                        ? "text-green-600 dark:text-green-500"
-                                        : "text-red-600 dark:text-red-500"
-                                    }`}
-                                  >
-                                    {variation >= 0 ? "+" : ""}R${" "}
-                                    {variation.toLocaleString("pt-BR", {
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                    })}
-                                  </div>
-                                  <div
-                                    className={`text-xs ${
-                                      variation >= 0
-                                        ? "text-green-600 dark:text-green-500"
-                                        : "text-red-600 dark:text-red-500"
-                                    }`}
-                                  >
-                                    {variation >= 0 ? "+" : ""}
-                                    {variationPercent?.toFixed(2)}%
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="pt-2 border-t border-border/50">
-                                  <div className="text-xs text-muted-foreground">
-                                    —
-                                  </div>
-                                </div>
-                              )}
-                            </>
+                              <div
+                                className={`text-xs ${
+                                  variationPercent >= 0
+                                    ? "text-green-600 dark:text-green-500"
+                                    : "text-red-600 dark:text-red-500"
+                                }`}
+                              >
+                                {variationPercent >= 0 ? "+" : ""}
+                                {variationPercent.toFixed(2)}%
+                              </div>
+                            </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">
-                              Não registrado
+                            <div className="pt-2 border-t border-border/50">
+                              <div className="text-xs text-muted-foreground">
+                                —
+                              </div>
                             </div>
                           )}
                         </div>

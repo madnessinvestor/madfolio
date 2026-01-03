@@ -178,7 +178,7 @@ export default function CryptoPage() {
   };
 
   const handleAddSnapshot = (snapshot: Snapshot) => {
-    createSnapshotMutation.mutate(snapshot);
+    createSnapshotMutation.mutate({ ...snapshot, _manualSave: true });
     setEditingAssetId(undefined);
   };
 

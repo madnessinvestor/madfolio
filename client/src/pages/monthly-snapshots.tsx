@@ -411,7 +411,7 @@ export default function MonthlySnapshotsPage() {
 
       // Save all snapshots
       for (const update of updates) {
-        await apiRequest("POST", "/api/snapshots", update);
+        await apiRequest("POST", "/api/snapshots", { ...update, _manualSave: true });
       }
 
       // Update currentPrice for each asset based on snapshot values

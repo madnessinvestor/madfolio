@@ -6,8 +6,11 @@ import {
   insertSnapshotSchema,
   insertWalletSchema,
   insertMonthlyPortfolioSnapshotSchema,
+  monthlyPortfolioSnapshots,
 } from "@shared/schema";
 import { z } from "zod";
+import { db } from "./db";
+import { eq, asc, sql } from "drizzle-orm";
 
 import {
   fetchAssetPrice,
@@ -745,7 +748,9 @@ export async function registerRoutes(
       const userId =
         req.session?.userId || req.user?.claims?.sub || "default-user";
 
+      // month vem como 1-12, mas Date() precisa de 0-11
       const startDate = `${year}-${month.toString().padStart(2, "0")}-01`;
+      // Para pegar último dia do mês: usar month (não month-1) com dia 0
       const endDate = new Date(year, month, 0).toISOString().split("T")[0];
 
       const snapshots = await storage.getSnapshotsByDateRange(
@@ -758,13 +763,32 @@ export async function registerRoutes(
       }
 
       // Also update the monthly portfolio snapshot
-      const monthlySnapshot = await storage.getMonthlyPortfolioSnapshot(
+      let monthlySnapshot = await storage.getMonthlyPortfolioSnapshot(
         userId,
         month,
         year
       );
 
-      if (monthlySnapshot) {
+      // Se não existir, criar o monthly snapshot com os dados do portfolio history
+      if (!monthlySnapshot) {
+        const portfolioHistoryEntry = await storage.getPortfolioHistoryByMonthYear(
+          userId,
+          month,
+          year
+        );
+        
+        if (portfolioHistoryEntry) {
+          monthlySnapshot = await storage.createOrUpdateMonthlyPortfolioSnapshot({
+            userId,
+            month,
+            year,
+            totalValue: portfolioHistoryEntry.totalValue,
+            date: portfolioHistoryEntry.date,
+            isLocked: locked ? 1 : 0,
+          });
+        }
+      } else {
+        // Se já existe, apenas atualizar o lock
         if (locked) {
           await storage.lockMonthlySnapshot(monthlySnapshot.id);
         } else {
@@ -1263,8 +1287,6 @@ export async function registerRoutes(
     const userId =
       req.session?.userId || req.user?.claims?.sub || "default-user";
     try {
-      // Get saved portfolio history records (from monthly snapshots)
-      const savedHistory = await storage.getPortfolioHistory(userId);
       const monthNames = [
         "Jan",
         "Fev",
@@ -1280,44 +1302,39 @@ export async function registerRoutes(
         "Dez",
       ];
 
-      // Also get month lock status for isLocked field
-      const historyByMonth = await storage.getPortfolioHistoryByMonth(userId);
-      const lockedMonths = new Map(
-        historyByMonth.map((h) => [`${h.year}-${h.month}`, h.isLocked === 1])
-      );
+      // Get monthly consolidated snapshots directly from monthly_portfolio_snapshots table
+      const monthlySnapshots = await db
+        .select()
+        .from(monthlyPortfolioSnapshots)
+        .where(
+          userId ? eq(monthlyPortfolioSnapshots.userId, userId) : sql`1=1`
+        )
+        .orderBy(
+          asc(monthlyPortfolioSnapshots.year),
+          asc(monthlyPortfolioSnapshots.month)
+        );
 
-      // Format history - return ALL available data, not just locked months
-      const formattedHistory = savedHistory
-        .filter((h) => h && h.year && h.month)
-        .sort((a, b) => {
-          if (a.year !== b.year) return a.year - b.year;
-          return a.month - b.month;
-        })
-        .map((h, index, array) => {
-          // Ensure month is within valid range (1-12)
-          const monthIndex = Math.max(0, Math.min(11, h.month - 1));
-          const prevValue = index > 0 ? array[index - 1].totalValue : 0;
-          const isLocked = lockedMonths.get(`${h.year}-${h.month}`) || false;
-          return {
-            id: h.id || `${h.year}-${h.month}`,
-            date: h.date,
-            month: `${monthNames[monthIndex]}`,
-            year: h.year,
-            value: h.totalValue || 0,
-            totalValue: h.totalValue || 0,
-            isLocked: isLocked ? 1 : 0,
-            variation:
-              prevValue > 0
-                ? ((h.totalValue - prevValue) / prevValue) * 100
-                : 0,
-            variationPercent:
-              prevValue > 0
-                ? ((h.totalValue - prevValue) / prevValue) * 100
-                : 0,
-          };
-        });
+      // Format history - one entry per month with variations
+      const formattedHistory = monthlySnapshots.map((h, index, array) => {
+        const monthIndex = Math.max(0, Math.min(11, h.month - 1));
+        const prevValue = index > 0 ? array[index - 1].totalValue : 0;
+        const valueDiff = prevValue > 0 ? h.totalValue - prevValue : 0;
+        const percentDiff = prevValue > 0 ? (valueDiff / prevValue) * 100 : 0;
+        
+        return {
+          id: h.id || `${h.year}-${h.month}`,
+          date: h.date,
+          month: monthNames[monthIndex],
+          year: h.year,
+          value: h.totalValue || 0,
+          totalValue: h.totalValue || 0,
+          isLocked: h.isLocked || 0,
+          variation: valueDiff,
+          variationPercent: percentDiff,
+        };
+      });
 
-      res.json(formattedHistory.length > 0 ? formattedHistory : []);
+      res.json(formattedHistory);
     } catch (error) {
       console.error("[Portfolio History Error]", error);
       res.status(500).json({

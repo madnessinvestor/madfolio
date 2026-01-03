@@ -312,7 +312,7 @@ export default function UpdateInvestmentsPage() {
 
       if (updates.length > 0) {
         for (const update of updates) {
-          await apiRequest("POST", "/api/snapshots", update);
+          await apiRequest("POST", "/api/snapshots", { ...update, _manualSave: true });
         }
       }
 

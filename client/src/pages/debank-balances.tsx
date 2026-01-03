@@ -75,11 +75,11 @@ export default function WalletTracker() {
       const data = await response.json();
       return data.balances || data;
     },
-    refetchInterval: false,
-    staleTime: 5 * 60 * 1000, // 5 minutos de cache
+    refetchInterval: 60000, // Refetch a cada 1 minuto
+    staleTime: 0, // Dados sempre considerados stale para atualizar imediatamente
     retry: 1,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false, // Evita refetch automático
+    refetchOnWindowFocus: true, // Refetch ao focar na janela
+    refetchOnMount: true, // Refetch ao montar o componente
   });
 
   // Timeout de segurança: limpar wallets em atualização após 90 segundos

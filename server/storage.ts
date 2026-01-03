@@ -185,14 +185,14 @@ export class DatabaseStorage implements IStorage {
     id: string,
     asset: Partial<InsertAsset>
   ): Promise<Asset | undefined> {
-    console.log(`[SQLite] UPDATING asset:`, id);
+    // Log removido para reduzir verbosidade
     try {
       const [updated] = await db
         .update(assets)
         .set(asset)
         .where(eq(assets.id, id))
         .returning();
-      console.log(`[SQLite] ✓ Asset updated:`, updated.symbol);
+      // Log reduzido para melhor performance
       await autoCommit(`feat: Update asset ${updated.symbol}`);
       return updated;
     } catch (error) {
@@ -282,7 +282,7 @@ export class DatabaseStorage implements IStorage {
         .set(snapshot)
         .where(eq(snapshots.id, id))
         .returning();
-      console.log(`[SQLite] ✓ Snapshot updated: ${id}`);
+      // Log removido para melhor performance
       await autoCommit(`feat: Update snapshot`);
       return updated;
     } catch (error) {
@@ -292,9 +292,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertSnapshot(snapshot: InsertSnapshot): Promise<Snapshot> {
-    console.log(
-      `[SQLite] Upserting snapshot for asset ${snapshot.assetId} on ${snapshot.date}`
-    );
+    // Log removido para melhor performance
     try {
       // Find existing snapshot for this asset on this date
       const [existing] = await db
@@ -315,7 +313,7 @@ export class DatabaseStorage implements IStorage {
           .set(snapshot)
           .where(eq(snapshots.id, existing.id))
           .returning();
-        console.log(`[SQLite] ✓ Snapshot updated (upsert): ${existing.id}`);
+        // Log removido
         result = updated;
       } else {
         // Create new snapshot
@@ -323,7 +321,7 @@ export class DatabaseStorage implements IStorage {
           .insert(snapshots)
           .values(snapshot)
           .returning();
-        console.log(`[SQLite] ✓ Snapshot created (upsert): ${newSnapshot.id}`);
+        // Log removido
         result = newSnapshot;
       }
 
