@@ -42,9 +42,9 @@
   {
     "id": "9a8e628e9767ef655706ffe96dbb60f6",
     "name": "STARKNET-madness",
-    "balance": "894.84",
-    "lastUpdated": "2026-01-03T19:26:51.189Z",
-    "status": "temporary_error",
+    "balance": "894.67",
+    "lastUpdated": "2026-01-03T19:27:37.973Z",
+    "status": "success",
     "platform": "unknown"
   }
 ]
